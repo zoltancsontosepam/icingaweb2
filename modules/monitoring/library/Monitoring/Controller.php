@@ -8,6 +8,8 @@ use Icinga\Data\Filterable;
 use Icinga\File\Csv;
 use Icinga\Web\Controller as IcingaWebController;
 use Icinga\Web\Url;
+use Icinga\Web\Widget;
+use Icinga\Module\Monitoring\DataView\DataView;
 
 /**
  * Base class for all monitoring action controller
@@ -72,6 +74,33 @@ class Controller extends IcingaWebController
             'url'   => Url::fromRequest()
         ))->activate($action);
         $this->view->title = $title;
+    }
+
+    /**
+     * Apply filters on a DataView
+     *
+     * @param DataView  $dataView       The DataView to apply filters on
+     *
+     * @return DataView $dataView
+     */
+    protected function filterQuery(DataView $dataView)
+    {
+        $editor = Widget::create('filterEditor')
+            ->setQuery($dataView)
+            ->preserveParams(
+                'limit', 'sort', 'dir', 'format', 'view', 'backend',
+                'stateType', 'addColumns', '_dev'
+            )
+            ->ignoreParams('page')
+            ->setSearchColumns($dataView->getSearchColumns())
+            ->handleRequest($this->getRequest());
+        $dataView->applyFilter($editor->getFilter());
+
+        $this->setupFilterControl($editor);
+        $this->view->filter = $editor->getFilter();
+
+        $this->handleFormatRequest($dataView);
+        return $dataView;
     }
 }
 

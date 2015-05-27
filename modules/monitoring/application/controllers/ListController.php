@@ -9,9 +9,7 @@ use Icinga\Web\Widget\Tabextension\DashboardAction;
 use Icinga\Web\Widget\Tabextension\OutputFormat;
 use Icinga\Web\Widget\Tabs;
 use Icinga\Data\Filter\Filter;
-use Icinga\Web\Widget;
 use Icinga\Module\Monitoring\Forms\StatehistoryForm;
-use Icinga\Module\Monitoring\DataView\DataView;
 
 class Monitoring_ListController extends Controller
 {
@@ -605,33 +603,6 @@ class Monitoring_ListController extends Controller
         $this->view->pivot = $pivot;
         $this->view->horizontalPaginator = $pivot->paginateXAxis();
         $this->view->verticalPaginator   = $pivot->paginateYAxis();
-    }
-
-    /**
-     * Apply filters on a DataView
-     *
-     * @param DataView  $dataView       The DataView to apply filters on
-     *
-     * @return DataView $dataView
-     */
-    protected function filterQuery(DataView $dataView)
-    {
-        $editor = Widget::create('filterEditor')
-            ->setQuery($dataView)
-            ->preserveParams(
-                'limit', 'sort', 'dir', 'format', 'view', 'backend',
-                'stateType', 'addColumns', '_dev'
-            )
-            ->ignoreParams('page')
-            ->setSearchColumns($dataView->getSearchColumns())
-            ->handleRequest($this->getRequest());
-        $dataView->applyFilter($editor->getFilter());
-
-        $this->setupFilterControl($editor);
-        $this->view->filter = $editor->getFilter();
-
-        $this->handleFormatRequest($dataView);
-        return $dataView;
     }
 
     /**
