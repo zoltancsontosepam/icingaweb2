@@ -63,5 +63,15 @@ class Controller extends IcingaWebController
         }
         return $view;
     }
+
+    protected function addTitleTab($action, $title, $tip)
+    {
+        $this->getTabs()->add($action, array(
+            'title' => $tip,
+            'label' => $title,
+            'url'   => Url::fromRequest()
+        ))->activate($action);
+        $this->view->title = $title;
+    }
 }
 

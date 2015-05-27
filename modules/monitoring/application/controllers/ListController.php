@@ -5,7 +5,6 @@ use Icinga\Module\Monitoring\Controller;
 use Icinga\Module\Monitoring\Backend;
 use Icinga\Module\Monitoring\Forms\Command\Object\DeleteCommentCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\DeleteDowntimeCommandForm;
-use Icinga\Web\Url;
 use Icinga\Web\Widget\Tabextension\DashboardAction;
 use Icinga\Web\Widget\Tabextension\OutputFormat;
 use Icinga\Web\Widget\Tabs;
@@ -651,16 +650,6 @@ class Monitoring_ListController extends Controller
         );
         $this->view->addColumns = $columns;
         return $columns;
-    }
-
-    protected function addTitleTab($action, $title, $tip)
-    {
-        $this->getTabs()->add($action, array(
-            'title' => $tip,
-            'label' => $title,
-            'url'   => Url::fromRequest()
-        ))->activate($action);
-        $this->view->title = $title;
     }
 
     /**
