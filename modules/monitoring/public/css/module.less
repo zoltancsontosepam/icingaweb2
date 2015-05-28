@@ -242,3 +242,55 @@ td.state {
     text-transform: capitalize;
   }
 }
+
+table.hostgroup-grid {
+    margin-right: 1em;
+    border-collapse: collapse;
+    display: inline-block;
+
+    &, tr {
+        &, td {
+            border: 0px none;
+        }
+    }
+
+    td:first-child {
+        width: 20em;
+    }
+    td:last-child {
+        padding: 0px;
+    }
+
+    div.state-indicator-circle {
+        width: 24px;
+        height: 24px;
+        border-radius: 12px;
+        display: inline-block;
+
+        &:hover {
+            cursor: help;
+        }
+
+        &.up {
+            background-color: @colorOk;
+        }
+
+        &.down {
+            background-color: @colorCritical;
+        }
+        &.down.handled {
+            background-color: @colorCriticalHandled;
+        }
+
+        &.unreachable {
+            background-color: @colorUnreachable;
+        }
+        &.unreachable.handled {
+            background-color: @colorUnreachableHandled;
+        }
+
+        &.pending {
+            background-color: @colorPending;
+        }
+    }
+}

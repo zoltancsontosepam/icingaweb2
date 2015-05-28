@@ -1,0 +1,61 @@
+<?php
+use Icinga\Module\Monitoring\Object\Host;
+
+if (! $this->compact): ?>
+<div class="controls">
+    <?= $this->tabs; ?>
+    <?= $this->sortBox; ?>
+    <?= $this->limiter; ?>
+    <?= $this->paginator; ?>
+    <?= $this->filterEditor; ?>
+</div>
+<?php endif ?>
+<div class="content">
+<?php
+if (count($hostgroups) === 0) {
+    echo $this->translate('No hostgroups found matching the filter') . '</div>';
+    return;
+}
+foreach ($hostgroups as $h) {
+    if ($h->hosts_down_unhandled) {
+        $handled = false;
+        $state = Host::STATE_DOWN;
+    } elseif ($h->hosts_unreachable_unhandled) {
+        $handled = false;
+        $state = Host::STATE_UNREACHABLE;
+    } else {
+        $handled = true;
+        if ($h->hosts_down_handled) {
+            $state = Host::STATE_DOWN;
+        } elseif ($h->hosts_unreachable_handled) {
+            $state = Host::STATE_UNREACHABLE;
+        } elseif ($h->hosts_up) {
+            $state = Host::STATE_UP;
+        } else {
+            $state = Host::STATE_PENDING;
+        }
+    }
+?>
+    <table class="hostgroup-grid">
+        <tr>
+            <td><?= $this->qlink(
+                $h->hostgroup_alias,
+                'monitoring/list/hosts',
+                array('hostgroup_name' => $h->hostgroup_name),
+                array('title' => sprintf($this->translate('List all hosts in the group "%s"'), $h->hostgroup_alias))
+            ) ?> (<?= $this->qlink(
+                $h->hosts_total,
+                'monitoring/list/hosts',
+                array('hostgroup_name' => $h->hostgroup_name),
+                array('title' => sprintf(
+                    $this->translate('List all hosts in host group "%s"'),
+                    $h->hostgroup_alias
+                ))
+            ) ?>)</td>
+            <td><div class="state-indicator-circle <?=
+                Host::getStateText($state) . ($handled ? ' handled' : '')
+            ?>" title="<?= Host::getStateText($state, true) ?>"></div></td>
+        </tr>
+    </table>
+<?php } ?>
+</div>
