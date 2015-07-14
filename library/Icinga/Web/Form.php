@@ -75,6 +75,13 @@ class Form extends Zend_Form
     protected $onSuccess;
 
     /**
+     * Whether this form should render a submit button
+     *
+     * @var bool
+     */
+    protected $submitButtonDisabled = false;
+
+    /**
      * Label to use for the standard submit button
      *
      * @var string
@@ -231,6 +238,29 @@ class Form extends Zend_Form
         }
         $this->onSuccess = $onSuccess;
         return $this;
+    }
+
+    /**
+     * Set whether this form should render a submit button
+     *
+     * @param   bool    $state
+     *
+     * @return  $this
+     */
+    public function setSubmitButtonDisabled($state = true)
+    {
+        $this->submitButtonDisabled = (bool) $state;
+        return $this;
+    }
+
+    /**
+     * Return whether this form should render a submit button
+     *
+     * @return  bool
+     */
+    public function getSubmitButtonDisabled()
+    {
+        return $this->submitButtonDisabled;
     }
 
     /**
@@ -671,8 +701,7 @@ class Form extends Zend_Form
      */
     public function addSubmitButton()
     {
-        $submitLabel = $this->getSubmitLabel();
-        if ($submitLabel) {
+        if (! $this->getSubmitButtonDisabled() && ($submitLabel = $this->getSubmitLabel())) {
             $this->addElement(
                 'submit',
                 'btn_submit',
@@ -703,7 +732,7 @@ class Form extends Zend_Form
     {
         if ($form instanceof self) {
             $form->setDecorators(array('FormElements')); // TODO: Makes it difficult to customise subform decorators..
-            $form->setSubmitLabel('');
+            $form->setSubmitButtonDisabled();
             $form->setTokenDisabled();
             $form->setUidDisabled();
         }
