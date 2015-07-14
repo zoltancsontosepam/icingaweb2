@@ -227,6 +227,8 @@ class Wizard
             );
         } elseif ($page instanceof self) {
             $page->setParent($this);
+        } else {
+            $page->setSubmitButtonDisabled();
         }
 
         $this->pages[] = $page;
@@ -706,7 +708,7 @@ class Wizard
                 array(
                     'type'          => 'submit',
                     'value'         => $pages[1]->getName(),
-                    'label'         => t('Next'),
+                    'label'         => $page->getSubmitLabel() ?: t('Next'),
                     'decorators'    => array('ViewHelper')
                 )
             );
@@ -728,7 +730,7 @@ class Wizard
                 array(
                     'type'          => 'submit',
                     'value'         => $pages[$index + 1]->getName(),
-                    'label'         => t('Next'),
+                    'label'         => $page->getSubmitLabel() ?: t('Next'),
                     'decorators'    => array('ViewHelper')
                 )
             );
@@ -750,7 +752,7 @@ class Wizard
                 array(
                     'type'          => 'submit',
                     'value'         => $page->getName(),
-                    'label'         => t('Finish'),
+                    'label'         => $page->getSubmitLabel() ?: t('Finish'),
                     'decorators'    => array('ViewHelper')
                 )
             );
