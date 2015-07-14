@@ -68,7 +68,7 @@ class Form extends Zend_Form
     protected $request;
 
     /**
-     * The callback to call instead of Form::onSuccess()
+     * The callback to call on Form::onSuccess()
      *
      * @var callable
      */
@@ -214,7 +214,7 @@ class Form extends Zend_Form
     }
 
     /**
-     * Set a callback that is called instead of this form's onSuccess method
+     * Set a callback that is called on Form::onSuccess()
      *
      * It is called using the following signature: (Form $this).
      *
@@ -639,13 +639,16 @@ class Form extends Zend_Form
     /**
      * Perform actions after this form was submitted using a valid request
      *
-     * Intended to be implemented by concrete form classes. The base implementation returns always FALSE.
+     * Intended to be implemented by concrete form classes. The base implementation
+     * returns the result of Form::$onSuccess if set, null otherwise.
      *
-     * @return  null|bool               Return FALSE in case no redirect should take place
+     * @return  null|bool               Return false in case no redirect should take place
      */
     public function onSuccess()
     {
-        return false;
+        if ($this->onSuccess !== null) {
+            return call_user_func($this->onSuccess, $this);
+        }
     }
 
     /**
@@ -948,9 +951,7 @@ class Form extends Zend_Form
         if ($this->getUidDisabled() || $this->wasSent($formData)) {
             $this->populate($formData); // Necessary to get isSubmitted() to work
             if (! $this->getSubmitLabel() || $this->isSubmitted()) {
-                if ($this->isValid($formData)
-                    && (($this->onSuccess !== null && false !== call_user_func($this->onSuccess, $this))
-                        || ($this->onSuccess === null && false !== $this->onSuccess()))) {
+                if ($this->isValid($formData) && $this->onSuccess() !== false) {
                     $this->getResponse()->redirectAndExit($this->getRedirectUrl());
                 }
             } elseif ($this->getValidatePartial()) {
