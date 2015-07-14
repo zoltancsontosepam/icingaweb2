@@ -7,6 +7,7 @@ use LogicException;
 use InvalidArgumentException;
 use Icinga\Web\Session\SessionNamespace;
 use Icinga\Web\Form\Decorator\ElementDoubler;
+use Icinga\Web\Wizard\Page;
 
 /**
  * Container and controller for form based wizards
@@ -234,13 +235,16 @@ class Wizard
      * Setup the given page that is either going to be displayed or validated
      *
      * Implement this method in a subclass to populate default values and/or other data required to process the form.
+     * Default behaviour is to instruct the page to setup itself if it is of type Page.
      *
      * @param   Form        $page       The page to setup
      * @param   Request     $request    The current request
      */
     public function setupPage(Form $page, Request $request)
     {
-
+        if ($page instanceof Page) {
+            $page->setup($this, $request);
+        }
     }
 
     /**
@@ -403,7 +407,8 @@ class Wizard
      *
      * Permission is checked by verifying that the requested page or its previous page has page data available.
      * The requested page is automatically permitted without any checks if the origin page is its previous
-     * page or one that occurs later in order.
+     * page or one that occurs later in order. If the page passed all checks and is of type Page it is asked
+     * whether it is required or should be skipped.
      *
      * @param   string  $requestedPage      The name of the requested page
      * @param   Form    $originPage         The origin page
@@ -432,6 +437,10 @@ class Wizard
             }
 
             if ($permitted) {
+                if ($page instanceof Page && !$page->isRequired($this)) {
+                    return $this->skipPage($page);
+                }
+
                 return $page;
             }
         }
@@ -592,10 +601,19 @@ class Wizard
     /**
      * Add buttons to the given page based on its position in the page-chain
      *
+     * If the given page is of type Page it is instructed to setup its navigation by itself first.
+     * If it does not setup the navigation this wizard's default behaviour is applied.
+     *
      * @param   Form    $page   The page to add the buttons to
      */
     protected function addButtons(Form $page)
     {
+        if ($page instanceof Page) {
+            if ($page->createNavigation($this)) {
+                return;
+            }
+        }
+
         $pages = $this->getPages();
         $index = array_search($page, $pages, true);
         if ($index === 0) {
