@@ -47,6 +47,15 @@ class Wizard
     protected $parent;
 
     /**
+     * The name of this wizard's session namespace
+     *
+     * Defaults to the class name if not set.
+     *
+     * @var string
+     */
+    protected $sessionNamespace;
+
+    /**
      * The name of the wizard's current page
      *
      * @var string
@@ -99,6 +108,35 @@ class Wizard
     {
         $this->parent = $wizard;
         return $this;
+    }
+
+    /**
+     * Set the name of this wizard's session namespace
+     *
+     * @param   string  $name
+     *
+     * @return  $this
+     */
+    public function setSessionNamespace($name)
+    {
+        $this->sessionNamespace = (string) $name;
+        return $this;
+    }
+
+    /**
+     * Return the name of this wizard's session namespace
+     *
+     * Returns the class name if no name is set.
+     *
+     * @return  string
+     */
+    public function getSessionNamespace()
+    {
+        if ($this->sessionNamespace === null) {
+            return get_class($this);
+        }
+
+        return $this->sessionNamespace;
     }
 
     /**
@@ -587,7 +625,7 @@ class Wizard
             return $this->parent->getSession();
         }
 
-        return Session::getSession()->getNamespace(get_class($this));
+        return Session::getSession()->getNamespace($this->getSessionNamespace());
     }
 
     /**
