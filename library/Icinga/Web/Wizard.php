@@ -56,6 +56,16 @@ class Wizard
     protected $sessionNamespace;
 
     /**
+     * Whether to trigger form events (i.e. onRequest and onSuccess)
+     *
+     * Note that when enabling form events, a wizard will clear its session
+     * automatically once onSuccess() of its last page returns true.
+     *
+     * @var bool
+     */
+    protected $triggerFormEvents = false;
+
+    /**
      * The name of the wizard's current page
      *
      * @var string
@@ -137,6 +147,29 @@ class Wizard
         }
 
         return $this->sessionNamespace;
+    }
+
+    /**
+     * Set whether to trigger form events (i.e. onRequest and onSuccess)
+     *
+     * @param   bool    $state
+     *
+     * @return  $this
+     */
+    public function setTriggerFormEvents($state = true)
+    {
+        $this->triggerFormEvents = (bool) $state;
+        return $this;
+    }
+
+    /**
+     * Return whether to trigger form events (i.e. onRequest and onSuccess)
+     *
+     * @return  bool
+     */
+    public function getTriggerFormEvents()
+    {
+        return $this->triggerFormEvents;
     }
 
     /**
@@ -298,6 +331,7 @@ class Wizard
     public function handleRequest(Request $request = null)
     {
         $page = $this->getCurrentPage();
+        $triggerEvents = $this->getTriggerFormEvents();
 
         if (($wizard = $this->findWizard($page)) !== null) {
             return $wizard->handleRequest($request);
@@ -314,8 +348,8 @@ class Wizard
                 $isValid = false;
                 $direction = $this->getDirection($request);
                 if ($direction === static::FORWARD && $page->isValid($requestData)) {
-                    $isValid = true;
-                    if ($this->isLastPage($page)) {
+                    $isValid = ! $triggerEvents || $page->onSuccess() !== false;
+                    if ($isValid && $this->isLastPage($page)) {
                         $this->setIsFinished();
                     }
                 } elseif ($direction === static::BACKWARD) {
@@ -324,9 +358,14 @@ class Wizard
                 }
 
                 if ($isValid) {
-                    $pageData = & $this->getPageData();
-                    $pageData[$page->getName()] = $page->getValues();
-                    $this->setCurrentPage($this->getNewPage($requestedPage, $page));
+                    if ($this->isFinished() && $triggerEvents) {
+                        $this->clearSession();
+                    } else {
+                        $pageData = & $this->getPageData();
+                        $pageData[$page->getName()] = $page->getValues();
+                        $this->setCurrentPage($this->getNewPage($requestedPage, $page));
+                    }
+
                     $page->getResponse()->redirectAndExit($page->getRedirectUrl());
                 }
             } elseif ($page->getValidatePartial()) {
@@ -334,8 +373,14 @@ class Wizard
             } else {
                 $page->populate($requestData);
             }
-        } elseif (($pageData = $this->getPageData($page->getName())) !== null) {
-            $page->populate($pageData);
+        } else {
+            if (($pageData = $this->getPageData($page->getName())) !== null) {
+                $page->populate($pageData);
+            }
+
+            if ($triggerEvents) {
+                $page->onRequest();
+            }
         }
 
         return $request;
