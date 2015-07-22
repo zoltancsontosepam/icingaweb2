@@ -3,13 +3,13 @@
 
 namespace Icinga\Web;
 
-use LogicException;
 use Zend_Config;
 use Zend_Form;
 use Zend_Form_Element;
 use Zend_View_Interface;
 use Icinga\Application\Icinga;
 use Icinga\Authentication\Manager;
+use Icinga\Exception\ProgrammingError;
 use Icinga\Security\SecurityException;
 use Icinga\Util\Translator;
 use Icinga\Web\Form\ErrorLabeller;
@@ -91,7 +91,7 @@ class Form extends Zend_Form
     /**
      * The url to redirect to upon success
      *
-     * @var string|Url
+     * @var Url
      */
     protected $redirectUrl;
 
@@ -168,6 +168,13 @@ class Form extends Zend_Form
     protected $notifications;
 
     /**
+     * The hints of this form
+     *
+     * @var array
+     */
+    protected $hints;
+
+    /**
      * Whether the Autosubmit decorator should be applied to this form
      *
      * If this is true, the Autosubmit decorator is being applied to this form instead of to each of its elements.
@@ -229,12 +236,12 @@ class Form extends Zend_Form
      *
      * @return  $this
      *
-     * @throws  LogicException          If the callback is not callable
+     * @throws  ProgrammingError        If the callback is not callable
      */
     public function setOnSuccess($onSuccess)
     {
         if (! is_callable($onSuccess)) {
-            throw new LogicException('The option `onSuccess\' is not callable');
+            throw new ProgrammingError('The option `onSuccess\' is not callable');
         }
         $this->onSuccess = $onSuccess;
         return $this;
@@ -292,9 +299,17 @@ class Form extends Zend_Form
      * @param   string|Url  $url    The url to redirect to
      *
      * @return  $this
+     *
+     * @throws  ProgrammingError    In case $url is neither a string nor a instance of Icinga\Web\Url
      */
     public function setRedirectUrl($url)
     {
+        if (is_string($url)) {
+            $url = Url::fromPath($url, array(), $this->getRequest());
+        } elseif (! $url instanceof Url) {
+            throw new ProgrammingError('$url must be a string or instance of Icinga\Web\Url');
+        }
+
         $this->redirectUrl = $url;
         return $this;
     }
@@ -302,12 +317,12 @@ class Form extends Zend_Form
     /**
      * Return the url to redirect to upon success
      *
-     * @return  string|Url
+     * @return  Url
      */
     public function getRedirectUrl()
     {
         if ($this->redirectUrl === null) {
-            $url = Url::fromRequest(array(), $this->getRequest());
+            $url = $this->getRequest()->getUrl();
             // Be sure to remove all form dependent params because we do not want to submit it again
             $this->redirectUrl = $url->without(array_keys($this->getElements()));
         }
@@ -597,6 +612,49 @@ class Form extends Zend_Form
     }
 
     /**
+     * Set the hints for this form
+     *
+     * @param   array   $hints
+     *
+     * @return  $this
+     */
+    public function setHints(array $hints)
+    {
+        $this->hints = $hints;
+        return $this;
+    }
+
+    /**
+     * Add a hint for this form
+     *
+     * If $hint is an array the second value should be an
+     * array as well containing additional HTML properties.
+     *
+     * @param   string|array    $hint
+     *
+     * @return  $this
+     */
+    public function addHint($hint)
+    {
+        $this->hints[] = $hint;
+        return $this;
+    }
+
+    /**
+     * Return the hints of this form
+     *
+     * @return  array
+     */
+    public function getHints()
+    {
+        if ($this->hints === null) {
+            return array();
+        }
+
+        return $this->hints;
+    }
+
+    /**
      * Set whether the Autosubmit decorator should be applied to this form
      *
      * If true, the Autosubmit decorator is being applied to this form instead of to each of its elements.
@@ -645,7 +703,7 @@ class Form extends Zend_Form
                 // TODO(el): Re-evalute this necessity. JavaScript could use the container's URL if there's no action set.
                 // We MUST set an action as JS gets confused otherwise, if
                 // this form is being displayed in an additional column
-                $this->setAction(Url::fromRequest()->without(array_keys($this->getElements())));
+                $this->setAction($this->getRequest()->getUrl()->without(array_keys($this->getElements())));
             }
 
             $this->created = true;
@@ -978,10 +1036,18 @@ class Form extends Zend_Form
 
         $formData = $this->getRequestData();
         if ($this->getUidDisabled() || $this->wasSent($formData)) {
+            if (($frameUpload = (bool) $request->getUrl()->shift('_frameUpload', false))) {
+                $this->getView()->layout()->setLayout('wrapped');
+            }
+
             $this->populate($formData); // Necessary to get isSubmitted() to work
             if (! $this->getSubmitLabel() || $this->isSubmitted()) {
                 if ($this->isValid($formData) && $this->onSuccess() !== false) {
-                    $this->getResponse()->redirectAndExit($this->getRedirectUrl());
+                    if (! $frameUpload) {
+                        $this->getResponse()->redirectAndExit($this->getRedirectUrl());
+                    } else {
+                        $this->getView()->layout()->redirectUrl = $this->getRedirectUrl()->getAbsoluteUrl();
+                    }
                 }
             } elseif ($this->getValidatePartial()) {
                 // The form can't be processed but we may want to show validation errors though
@@ -1117,10 +1183,11 @@ class Form extends Zend_Form
                         ->addDecorator('HtmlTag', array('tag' => 'div', 'class' => 'header'));
                 }
 
-                $this->addDecorator('FormErrors', array('onlyCustomFormErrors' => true))
+                $this->addDecorator('FormDescriptions')
                     ->addDecorator('FormNotifications')
-                    ->addDecorator('FormDescriptions')
+                    ->addDecorator('FormErrors', array('onlyCustomFormErrors' => true))
                     ->addDecorator('FormElements')
+                    ->addDecorator('FormHints')
                     //->addDecorator('HtmlTag', array('tag' => 'dl', 'class' => 'zend_form'))
                     ->addDecorator('Form');
             }

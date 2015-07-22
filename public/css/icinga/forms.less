@@ -5,7 +5,7 @@ label {
   font-weight: bold;
 }
 
-input, select {
+input, select, textarea {
   box-sizing: border-box;
   -moz-box-sizing: border-box;
   -webkit-box-sizing: border-box;
@@ -180,6 +180,14 @@ form label {
   width: 10em;
 }
 
+form div.element > * {
+  vertical-align: top;
+}
+
+form dt {
+  vertical-align: top;
+}
+
 select, input[type=text], textarea {
   width: 20em;
   display: inline-block;
@@ -237,5 +245,15 @@ form ul.descriptions {
       margin-left: -1.3em;
       list-style-type: none;
     }
+  }
+}
+
+form ul.hints {
+  .non-list-like-list;
+  padding: 0.5em 0.5em 0 0.5em;
+
+  li {
+    font-size: 0.8em;
+    padding-bottom: 0.5em;
   }
 }

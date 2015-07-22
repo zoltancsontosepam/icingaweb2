@@ -3,20 +3,24 @@
 
 namespace Icinga\Protocol\Ldap;
 
+use Exception;
 use ArrayIterator;
 use Icinga\Application\Config;
 use Icinga\Application\Logger;
 use Icinga\Application\Platform;
 use Icinga\Data\ConfigObject;
+use Icinga\Data\Inspectable;
+use Icinga\Data\Inspection;
 use Icinga\Data\Selectable;
 use Icinga\Data\Sortable;
+use Icinga\Exception\InspectionException;
 use Icinga\Exception\ProgrammingError;
 use Icinga\Protocol\Ldap\LdapException;
 
 /**
  * Encapsulate LDAP connections and query creation
  */
-class LdapConnection implements Selectable
+class LdapConnection implements Selectable, Inspectable
 {
     /**
      * Indicates that the target object cannot be found
@@ -142,7 +146,7 @@ class LdapConnection implements Selectable
     /**
      * The properties and capabilities of the LDAP server
      *
-     * @var Capability
+     * @var LdapCapabilities
      */
     protected $capabilities;
 
@@ -158,7 +162,7 @@ class LdapConnection implements Selectable
      *
      * @var bool
      */
-    protected $encryptionSuccess;
+    protected $encrypted = null;
 
     /**
      * Create a new connection object
@@ -243,18 +247,18 @@ class LdapConnection implements Selectable
     /**
      * Return the capabilities of the current connection
      *
-     * @return  Capability
+     * @return  LdapCapabilities
      */
     public function getCapabilities()
     {
         if ($this->capabilities === null) {
             try {
-                $this->capabilities = $this->discoverCapabilities($this->getConnection());
+                $this->capabilities = LdapCapabilities::discoverCapabilities($this);
                 $this->discoverySuccess = true;
             } catch (LdapException $e) {
                 Logger::debug($e);
                 Logger::warning('LADP discovery failed, assuming default LDAP capabilities.');
-                $this->capabilities = new Capability(); // create empty default capabilities
+                $this->capabilities = new LdapCapabilities(); // create empty default capabilities
                 $this->discoverySuccess = false;
             }
         }
@@ -283,11 +287,11 @@ class LdapConnection implements Selectable
      */
     public function isEncrypted()
     {
-        if ($this->encryptionSuccess === null) {
+        if ($this->encrypted === null) {
             return false;
         }
 
-        return $this->encryptionSuccess;
+        return $this->encrypted;
     }
 
     /**
@@ -328,12 +332,6 @@ class LdapConnection implements Selectable
         }
 
         $this->bound = true;
-
-        if ($this->encryptionSuccess === false && $this->getCapabilities()->hasStartTls()) {
-            // Alert the user about the unencrypted connection if there is really an error. If the server
-            // does not support it, don't do anything as authentication is completely broken otherwise.
-            throw new LdapException('LDAP STARTTLS failed. An error occured. Please see the log for more details');
-        }
     }
 
     /**
@@ -385,8 +383,7 @@ class LdapConnection implements Selectable
     {
         $this->bind();
 
-        if (
-            $query->getUsePagedResults()
+        if ($query->getUsePagedResults()
             && version_compare(PHP_VERSION, '5.4.0') >= 0
             && $this->getCapabilities()->hasPagedResult()
         ) {
@@ -660,7 +657,7 @@ class LdapConnection implements Selectable
         if ($serverSorting && $query->hasOrder()) {
             ldap_set_option($ds, LDAP_OPT_SERVER_CONTROLS, array(
                 array(
-                    'oid'   => Capability::LDAP_SERVER_SORT_OID,
+                    'oid'   => LdapCapabilities::LDAP_SERVER_SORT_OID,
                     'value' => $this->encodeSortRules($query->getOrder())
                 )
             ));
@@ -702,11 +699,11 @@ class LdapConnection implements Selectable
             $count += 1;
             if (! $serverSorting || $offset === 0 || $offset < $count) {
                 $entries[ldap_get_dn($ds, $entry)] = $this->cleanupAttributes(
-                    ldap_get_attributes($ds, $entry), array_flip($fields)
+                    ldap_get_attributes($ds, $entry),
+                    array_flip($fields)
                 );
             }
-        } while (
-            (! $serverSorting || $limit === 0 || $limit !== count($entries))
+        } while ((! $serverSorting || $limit === 0 || $limit !== count($entries))
             && ($entry = ldap_next_entry($ds, $entry))
         );
 
@@ -755,7 +752,7 @@ class LdapConnection implements Selectable
         if ($serverSorting && $query->hasOrder()) {
             ldap_set_option($ds, LDAP_OPT_SERVER_CONTROLS, array(
                 array(
-                    'oid'   => Capability::LDAP_SERVER_SORT_OID,
+                    'oid'   => LdapCapabilities::LDAP_SERVER_SORT_OID,
                     'value' => $this->encodeSortRules($query->getOrder())
                 )
             ));
@@ -814,7 +811,8 @@ class LdapConnection implements Selectable
                 $count += 1;
                 if (! $serverSorting || $offset === 0 || $offset < $count) {
                     $entries[ldap_get_dn($ds, $entry)] = $this->cleanupAttributes(
-                        ldap_get_attributes($ds, $entry), array_flip($fields)
+                        ldap_get_attributes($ds, $entry),
+                        array_flip($fields)
                     );
                 }
             } while (
@@ -870,7 +868,7 @@ class LdapConnection implements Selectable
      *
      * @return  object
      */
-    protected function cleanupAttributes($attributes, array $requestedFields)
+    public function cleanupAttributes($attributes, array $requestedFields)
     {
         // In case the result contains attributes with a differing case than the requested fields, it is
         // necessary to create another array to map attributes case insensitively to their requested counterparts.
@@ -920,6 +918,7 @@ class LdapConnection implements Selectable
      * @param   array   $sortRules
      *
      * @return  string
+     * @throws ProgrammingError
      *
      * @todo    Produces an invalid stream, obviously
      */
@@ -945,18 +944,28 @@ class LdapConnection implements Selectable
     /**
      * Prepare and establish a connection with the LDAP server
      *
-     * @return  resource        A LDAP link identifier
+     * @param   Inspection  $info   Optional inspection to fill with diagnostic info
      *
-     * @throws  LdapException   In case the connection is not possible
+     * @return  resource            A LDAP link identifier
+     *
+     * @throws  LdapException       In case the connection is not possible
      */
-    protected function prepareNewConnection()
+    protected function prepareNewConnection(Inspection $info = null)
     {
+        if (! isset($info)) {
+            $info = new Inspection('');
+        }
+
         if ($this->encryption === static::STARTTLS || $this->encryption === static::LDAPS) {
             $this->prepareTlsEnvironment();
         }
 
         $hostname = $this->hostname;
         if ($this->encryption === static::LDAPS) {
+            $info->write('Connect using LDAPS');
+            if (! $this->validateCertificate) {
+                $info->write('Skip certificate validation');
+            }
             $hostname = 'ldaps://' . $hostname;
         }
 
@@ -971,19 +980,18 @@ class LdapConnection implements Selectable
         ldap_set_option($ds, LDAP_OPT_REFERRALS, 0);
 
         if ($this->encryption === static::STARTTLS) {
-            if (($this->encryptionSuccess = @ldap_start_tls($ds))) {
-                Logger::debug('LDAP STARTTLS succeeded');
-            } else {
-                Logger::error('LDAP STARTTLS failed: %s', ldap_error($ds));
-
-                // ldap_start_tls seems to corrupt the connection though if I understand
-                // https://tools.ietf.org/html/rfc4511#section-4.14.2 correctly, this shouldn't happen
-                $ds = ldap_connect($hostname, $this->port);
-                ldap_set_option($ds, LDAP_OPT_PROTOCOL_VERSION, 3);
-                ldap_set_option($ds, LDAP_OPT_REFERRALS, 0);
+            $this->encrypted = true;
+            $info->write('Connect using STARTTLS');
+            if (! $this->validateCertificate) {
+                $info->write('Skip certificate validation');
             }
-        } elseif ($this->encryption === static::LDAPS) {
-            $this->encryptionSuccess = true;
+            if (! ldap_start_tls($ds)) {
+                throw new LdapException('LDAP STARTTLS failed: %s', ldap_error($ds));
+            }
+
+        } elseif ($this->encryption !== static::LDAPS) {
+            $this->encrypted = false;
+            $info->write('Connect without encryption');
         }
 
         return $ds;
@@ -1011,56 +1019,6 @@ class LdapConnection implements Selectable
                 throw new LdapException('putenv failed');
             }
         }
-    }
-
-    /**
-     * Discover the capabilities of the given LDAP server
-     *
-     * @param   resource    $ds     The link identifier of the current LDAP connection
-     *
-     * @return  Capability
-     *
-     * @throws  LdapException       In case the capability query has failed
-     */
-    protected function discoverCapabilities($ds)
-    {
-        $fields = array(
-            'defaultNamingContext',
-            'namingContexts',
-            'vendorName',
-            'vendorVersion',
-            'supportedSaslMechanisms',
-            'dnsHostName',
-            'schemaNamingContext',
-            'supportedLDAPVersion', // => array(3, 2)
-            'supportedCapabilities',
-            'supportedControl',
-            'supportedExtension',
-            '+'
-        );
-
-        $result = @ldap_read($ds, '', (string) $this->select()->from('*', $fields), $fields);
-        if (! $result) {
-            throw new LdapException(
-                'Capability query failed (%s:%d): %s. Check if hostname and port of the'
-                . ' ldap resource are correct and if anonymous access is permitted.',
-                $this->hostname,
-                $this->port,
-                ldap_error($ds)
-            );
-        }
-
-        $entry = ldap_first_entry($ds, $result);
-        if ($entry === false) {
-            throw new LdapException(
-                'Capabilities not available (%s:%d): %s. Discovery of root DSE probably not permitted.',
-                $this->hostname,
-                $this->port,
-                ldap_error($ds)
-            );
-        }
-
-        return new Capability($this->cleanupAttributes(ldap_get_attributes($ds, $entry), array_flip($fields)));
     }
 
     /**
@@ -1126,6 +1084,57 @@ class LdapConnection implements Selectable
         }
 
         return $dir;
+    }
+
+    /**
+     * Inspect if this LDAP Connection is working as expected
+     *
+     * Check if connection, bind and encryption is working as expected and get additional
+     * information about the used
+     *
+     * @return  Inspection  Inspection result
+     */
+    public function inspect()
+    {
+        $insp = new Inspection('Ldap Connection');
+
+        // Try to connect to the server with the given connection parameters
+        try {
+            $ds = $this->prepareNewConnection($insp);
+        } catch (Exception $e) {
+            return $insp->error($e->getMessage());
+        }
+
+        // Try a bind-command with the given user credentials, this must not fail
+        $success = @ldap_bind($ds, $this->bindDn, $this->bindPw);
+        $msg = sprintf(
+            'LDAP bind to %s:%s (%s / %s)',
+            $this->hostname,
+            $this->port,
+            $this->bindDn,
+            '***' /* $this->bindPw */
+        );
+        if (! $success) {
+            return $insp->error(sprintf('%s failed: %s', $msg, ldap_error($ds)));
+        }
+        $insp->write(sprintf($msg . ' successful'));
+
+        // Try to execute a schema discovery this may fail if schema discovery is not supported
+        try {
+            $cap = LdapCapabilities::discoverCapabilities($this);
+            $discovery = new Inspection('Discovery Results');
+            $discovery->write($cap->getVendor());
+            $version = $cap->getVersion();
+            if (isset($version)) {
+                $discovery->write($version);
+            }
+            $discovery->write('Supports STARTTLS: ' . ($cap->hasStartTls() ? 'True' : 'False'));
+            $discovery->write('Default naming context: ' . $cap->getDefaultNamingContext());
+            $insp->write($discovery);
+        } catch (Exception $e) {
+            $insp->write('Schema discovery not possible: ' . $e->getMessage());
+        }
+        return $insp;
     }
 
     /**
