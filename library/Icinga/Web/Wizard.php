@@ -225,10 +225,16 @@ class Wizard
                 'The $page argument must be an instance of Icinga\Web\Form '
                 . 'or Icinga\Web\Wizard but is of type: ' . get_class($page)
             );
-        } elseif ($page instanceof self) {
-            $page->setParent($this);
-        } else {
+        } elseif ($page instanceof Form) {
             $page->setSubmitButtonDisabled();
+
+            if ($page->isGuided()) {
+                $page = $page->getGuide();
+            }
+        }
+
+        if ($page instanceof self) {
+            $page->setParent($this);
         }
 
         $this->pages[] = $page;
@@ -317,6 +323,9 @@ class Wizard
     {
         if ($page instanceof Page) {
             $page->setup($this, $request);
+        } elseif ($page->isGuided()) {
+            // TODO(jom): I'm not sure if this the correct way to populate such results here and especially *now*
+            $page->applyGuide($request);
         }
     }
 
@@ -796,6 +805,13 @@ class Wizard
      */
     public function __toString()
     {
-        return (string) $this->getForm();
+        try {
+            return $this->getForm()->render();
+        } catch (Exception $e) {
+            $message = "Exception caught by form: " . $e->getMessage()
+                     . "\nStack Trace:\n" . $e->getTraceAsString();
+            trigger_error($message, E_USER_WARNING);
+            return '';
+        }
     }
 }

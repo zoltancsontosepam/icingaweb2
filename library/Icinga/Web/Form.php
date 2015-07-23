@@ -15,6 +15,8 @@ use Icinga\Util\Translator;
 use Icinga\Web\Form\ErrorLabeller;
 use Icinga\Web\Form\Decorator\Autosubmit;
 use Icinga\Web\Form\Element\CsrfCounterMeasure;
+use Icinga\Web\Form\FormElement;
+use Icinga\Web\Wizard;
 
 /**
  * Base class for forms providing CSRF protection, confirmation logic and auto submission
@@ -59,6 +61,27 @@ class Form extends Zend_Form
      * @var bool
      */
     protected $created = false;
+
+    /**
+     * Whether this is a guided form
+     *
+     * @var bool
+     */
+    protected $guided;
+
+    /**
+     * This form's guide
+     *
+     * @var Wizard
+     */
+    protected $guide;
+
+    /**
+     * An array to map guides to sub-forms and form elements
+     *
+     * @var array
+     */
+    protected $guides;
 
     /**
      * The request associated with this form
@@ -680,6 +703,108 @@ class Form extends Zend_Form
     }
 
     /**
+     * Set whether this is a guided form
+     *
+     * @param   bool    $state
+     *
+     * @return  $this
+     */
+    public function setGuided($state = true)
+    {
+        $this->guided = (bool) $state;
+        return $this;
+    }
+
+    /**
+     * Return whether this is a guided form
+     *
+     * @return  bool
+     */
+    public function isGuided()
+    {
+        if ($this->guided === null) {
+            $this->guided = false;
+            foreach ($this->getElements() as $element) {
+                if ($element instanceof FormElement && $element->isGuided()) {
+                    $this->guided = true;
+                    break;
+                }
+            }
+
+            if (! $this->guided) {
+                foreach ($this->getSubForms() as $form) {
+                    if ($form instanceof self && $form->isGuided()) {
+                        $this->guided = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $this->guided;
+    }
+
+    /**
+     * Return the wizard to guide the user through the completion of this form
+     *
+     * This will call Form::createGuide() and adds itself as last page to the returned wizard.
+     *
+     * @return  Wizard
+     */
+    public function getGuide()
+    {
+        if ($this->guide === null) {
+            $this->guide = $this->createGuide();
+
+            $guided = $this->isGuided();
+            if ($guided) {
+                $this->setGuided(false); // Prevent Wizard::addPage() from calling $this->getGuide() again
+            }
+
+            $this->guide->addPage($this);
+
+            if ($guided) {
+                $this->setGuided(true);
+            }
+        }
+
+        return $this->guide;
+    }
+
+    /**
+     * Apply the results of this form's guide to all guided sub-forms and form-elements
+     *
+     * @param   Request     $request
+     */
+    public function applyGuide(Request $request)
+    {
+        
+    }
+
+    /**
+     * Create and return the wizard to guide the user through the completion of this form
+     *
+     * Overwrite this to provide a custom wizard for this form.
+     *
+     * @return  Wizard
+     */
+    protected function createGuide()
+    {
+        $wizard = new Wizard();
+        $wizard->setTriggerFormEvents();
+        $wizard->setSessionNamespace($this->getName() . '_guide');
+        foreach ($this->getElementsAndSubFormsOrdered() as $elOrForm) {
+            if (($elOrForm instanceof self || $elOrForm instanceof FormElement) && $elOrForm->isGuided()) {
+                $guide = $elOrForm->getGuide();
+                $wizard->addPage($guide);
+                $this->guides[$elOrForm->getName()] = $guide;
+            }
+        }
+
+        return $wizard;
+    }
+
+    /**
      * Create this form
      *
      * @param   array   $formData   The data sent by the user
@@ -1032,6 +1157,10 @@ class Form extends Zend_Form
             $request = $this->getRequest();
         } else {
             $this->request = $request;
+        }
+
+        if ($this->isGuided()) {
+            return $this->getGuide()->handleRequest($request);
         }
 
         $formData = $this->getRequestData();
@@ -1448,5 +1577,19 @@ class Form extends Zend_Form
         }
 
         return $this;
+    }
+
+    /**
+     * Render this form or its guide to HTML
+     *
+     * @return  string
+     */
+    public function __toString()
+    {
+        if ($this->isGuided()) {
+            return (string) $this->getGuide();
+        }
+
+        return parent::__toString();
     }
 }
