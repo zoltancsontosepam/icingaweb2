@@ -7,7 +7,7 @@ use InvalidArgumentException;
 use Icinga\Module\Monitoring\Backend\MonitoringBackend;
 
 /**
- * A Icinga service
+ * An Icinga service
  */
 class Service extends MonitoredObject
 {
@@ -105,7 +105,8 @@ class Service extends MonitoredObject
      */
     protected function getDataView()
     {
-        return $this->backend->select()->from('serviceStatus', array(
+        return $this->backend->select()->from('servicestatus', array(
+            'instance_name',
             'host_icon_image',
             'host_icon_image_alt',
             'host_acknowledged',
@@ -202,7 +203,9 @@ class Service extends MonitoredObject
 
     public function getNotesUrls()
     {
-        return MonitoredObject::parseAttributeUrls($this->service_notes_url);
+        return $this->resolveAllStrings(
+            MonitoredObject::parseAttributeUrls($this->service_notes_url)
+        );
     }
 
     public function getNotes()

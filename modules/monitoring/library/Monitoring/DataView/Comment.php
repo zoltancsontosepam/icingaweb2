@@ -4,7 +4,7 @@
 namespace Icinga\Module\Monitoring\DataView;
 
 /**
- * View representation for comments
+ * Host and service comments view
  */
 class Comment extends DataView
 {
@@ -14,20 +14,43 @@ class Comment extends DataView
     public function getColumns()
     {
         return array(
-            'comment_objecttype',
-            'comment_internal_id',
-            'comment_data',
+            'instance_name',
             'comment_author_name',
+            'comment_data',
+            'comment_expiration',
+            'comment_internal_id',
+            'comment_is_persistent',
             'comment_timestamp',
             'comment_type',
-            'comment_is_persistent',
-            'comment_expiration',
-            'host_name',
-            'service_description',
             'host_display_name',
+            'host_name',
+            'object_type',
+            'service_description',
             'service_display_name',
             'service_host_name'
         );
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getStaticFilterColumns()
+    {
+        return array(
+            'comment_author',
+            'host', 'host_alias',
+            'hostgroup', 'hostgroup_alias', 'hostgroup_name',
+            'service',
+            'servicegroup', 'servicegroup_alias', 'servicegroup_name'
+        );
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getSearchColumns()
+    {
+        return array('host_display_name', 'service_display_name');
     }
 
     /**
@@ -54,13 +77,5 @@ class Comment extends DataView
                 'order' => self::SORT_ASC
             )
         );
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getFilterColumns()
-    {
-        return array('comment_author', 'host', 'service', 'service_host');
     }
 }

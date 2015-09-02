@@ -3,6 +3,8 @@
 
 namespace Icinga\Module\Monitoring;
 
+use Icinga\Exception\ConfigurationError;
+use Icinga\Exception\QueryException;
 use Icinga\Data\Filter\Filter;
 use Icinga\Data\Filterable;
 use Icinga\File\Csv;
@@ -54,15 +56,51 @@ class Controller extends IcingaWebController
      * Apply a restriction on the given data view
      *
      * @param   string      $restriction    The name of restriction
-     * @param   Filterable  $filterable     The filterable to restrict
+     * @param   Filterable  $view           The filterable to restrict
      *
      * @return  Filterable  The filterable
      */
     protected function applyRestriction($restriction, Filterable $view)
     {
+        $restrictions = Filter::matchAny();
+        $restrictions->setAllowedFilterColumns(array(
+            'instance_name',
+            'host_name',
+            'hostgroup_name',
+            'service_description',
+            'servicegroup_name',
+            function ($c) {
+                return preg_match('/^_(?:host|service)_/', $c);
+            }
+        ));
+
         foreach ($this->getRestrictions($restriction) as $filter) {
-            $view->applyFilter(Filter::fromQueryString($filter));
+            if ($filter === '*') {
+                return $view;
+            }
+            try {
+                $restrictions->addFilter(Filter::fromQueryString($filter));
+            } catch (QueryException $e) {
+                throw new ConfigurationError(
+                    $this->translate(
+                        'Cannot apply restriction %s using the filter %s. You can only use the following columns: %s'
+                    ),
+                    $restriction,
+                    $filter,
+                    implode(', ', array(
+                        'instance_name',
+                        'host_name',
+                        'hostgroup_name',
+                        'service_description',
+                        'servicegroup_name',
+                        '_(host|service)_<customvar-name>'
+                    )),
+                    $e
+                );
+            }
         }
+
+        $view->applyFilter($restrictions);
         return $view;
     }
 
@@ -75,32 +113,4 @@ class Controller extends IcingaWebController
         ))->activate($action);
         $this->view->title = $title;
     }
-
-    /**
-     * Apply filters on a DataView
-     *
-     * @param DataView  $dataView       The DataView to apply filters on
-     *
-     * @return DataView $dataView
-     */
-    protected function filterQuery(DataView $dataView)
-    {
-        $editor = Widget::create('filterEditor')
-            ->setQuery($dataView)
-            ->preserveParams(
-                'limit', 'sort', 'dir', 'format', 'view', 'backend',
-                'stateType', 'addColumns', '_dev'
-            )
-            ->ignoreParams('page')
-            ->setSearchColumns($dataView->getSearchColumns())
-            ->handleRequest($this->getRequest());
-        $dataView->applyFilter($editor->getFilter());
-
-        $this->setupFilterControl($editor);
-        $this->view->filter = $editor->getFilter();
-
-        $this->handleFormatRequest($dataView);
-        return $dataView;
-    }
 }
-

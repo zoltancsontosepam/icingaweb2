@@ -1,15 +1,20 @@
 <?php
 /* Icinga Web 2 | (c) 2013-2015 Icinga Development Team | GPLv2+ */
 
+namespace Icinga\Controllers;
+
+use Icinga\Application\Config;
+use Icinga\Data\ConfigObject;
+use Icinga\Forms\PreferenceForm;
+use Icinga\User\Preferences\PreferencesStore;
 use Icinga\Web\Controller\BasePreferenceController;
 use Icinga\Web\Url;
 use Icinga\Web\Widget\Tab;
-use Icinga\Application\Config;
-use Icinga\Forms\PreferenceForm;
-use Icinga\User\Preferences\PreferencesStore;
 
 /**
  * Application wide preference controller for user preferences
+ *
+ * @TODO(el): Rename to PreferencesController: https://dev.icinga.org/issues/10014
  */
 class PreferenceController extends BasePreferenceController
 {
@@ -38,13 +43,16 @@ class PreferenceController extends BasePreferenceController
      */
     public function indexAction()
     {
-        $storeConfig = Config::app()->getSection('preferences');
-
+        $config = Config::app()->getSection('global');
         $user = $this->getRequest()->getUser();
+
         $form = new PreferenceForm();
         $form->setPreferences($user->getPreferences());
-        if ($storeConfig->get('store', 'ini') !== 'none') {
-            $form->setStore(PreferencesStore::create($storeConfig, $user));
+        if ($config->get('config_backend', 'ini') !== 'none') {
+            $form->setStore(PreferencesStore::create(new ConfigObject(array(
+                'store'     => $config->get('config_backend', 'ini'),
+                'resource'  => $config->config_resource
+            )), $user));
         }
         $form->handleRequest();
 

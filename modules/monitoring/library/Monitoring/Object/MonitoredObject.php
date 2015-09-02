@@ -155,7 +155,7 @@ abstract class MonitoredObject implements Filterable
     public function getFilter()
     {
         if ($this->filter === null) {
-            $this->filter = Filter::matchAny();
+            $this->filter = Filter::matchAll();
         }
         return $this->filter;
     }
@@ -253,7 +253,7 @@ abstract class MonitoredObject implements Filterable
             'type'      => 'comment_type',
         ))
             ->where('comment_type', array('comment', 'ack'))
-            ->where('comment_objecttype', $this->type);
+            ->where('object_type', $this->type);
         if ($this->type === self::TYPE_SERVICE) {
             $comments
                 ->where('service_host_name', $this->host_name)
@@ -274,11 +274,12 @@ abstract class MonitoredObject implements Filterable
     {
         $downtimes = $this->backend->select()->from('downtime', array(
             'id'                => 'downtime_internal_id',
-            'objecttype'        => 'downtime_objecttype',
+            'objecttype'        => 'object_type',
             'comment'           => 'downtime_comment',
             'author_name'       => 'downtime_author_name',
             'start'             => 'downtime_start',
             'scheduled_start'   => 'downtime_scheduled_start',
+            'scheduled_end'     => 'downtime_scheduled_end',
             'end'               => 'downtime_end',
             'duration'          => 'downtime_duration',
             'is_flexible'       => 'downtime_is_flexible',
@@ -286,7 +287,7 @@ abstract class MonitoredObject implements Filterable
             'is_in_effect'      => 'downtime_is_in_effect',
             'entry_time'        => 'downtime_entry_time'
         ))
-            ->where('downtime_objecttype', $this->type)
+            ->where('object_type', $this->type)
             ->order('downtime_is_in_effect', 'DESC')
             ->order('downtime_scheduled_start', 'ASC');
         if ($this->type === self::TYPE_SERVICE) {
@@ -308,12 +309,11 @@ abstract class MonitoredObject implements Filterable
      */
     public function fetchHostgroups()
     {
-        $hostGroups = $this->backend->select()->from('hostgroup', array(
-            'hostgroup_name',
-            'hostgroup_alias'
-        ))
-            ->where('host_name', $this->host);
-        $this->hostgroups = $hostGroups->getQuery()->fetchPairs();
+        $this->hostgroups = $this->backend->select()
+            ->from('hostgroup', array('hostgroup_name', 'hostgroup_alias'))
+            ->where('host_name', $this->host_name)
+            ->applyFilter($this->getFilter())
+            ->fetchPairs();
         return $this;
     }
 
@@ -396,7 +396,7 @@ abstract class MonitoredObject implements Filterable
         } else {
             $contacts->where('host_name', $this->host_name);
         }
-        $this->contacts = $contacts->getQuery()->fetchAll();
+        $this->contacts = $contacts->applyFilter($this->getFilter())->getQuery()->fetchAll();
         return $this;
     }
 
@@ -407,13 +407,12 @@ abstract class MonitoredObject implements Filterable
      */
     public function fetchServicegroups()
     {
-        $serviceGroups = $this->backend->select()->from('servicegroup', array(
-                'servicegroup_name',
-                'servicegroup_alias'
-        ))
-            ->where('service_host_name', $this->host_name)
-            ->where('service_description', $this->service_description);
-        $this->servicegroups = $serviceGroups->getQuery()->fetchPairs();
+        $this->servicegroups = $this->backend->select()
+            ->from('servicegroup', array('servicegroup_name', 'servicegroup_alias'))
+            ->where('host_name', $this->host_name)
+            ->where('service_description', $this->service_description)
+            ->applyFilter($this->getFilter())
+            ->fetchPairs();
         return $this;
     }
 
@@ -440,7 +439,7 @@ abstract class MonitoredObject implements Filterable
         } else {
             $contactsGroups->where('host_name', $this->host_name);
         }
-        $this->contactgroups = $contactsGroups->getQuery()->fetchAll();
+        $this->contactgroups = $contactsGroups->applyFilter($this->getFilter())->getQuery()->fetchAll();
         return $this;
     }
 
@@ -451,24 +450,30 @@ abstract class MonitoredObject implements Filterable
      */
     public function fetchEventhistory()
     {
-        $eventHistory = $this->backend->select()->from('eventHistory', array(
-                'object_type',
-                'host_name',
-                'host_display_name',
-                'service_description',
-                'service_display_name',
-                'timestamp',
-                'state',
-                'attempt',
-                'max_attempts',
-                'output',
-                'type'
-        ))
+        $eventHistory = $this->backend
+            ->select()
+            ->from(
+                'eventhistory',
+                array(
+                    'object_type',
+                    'host_name',
+                    'host_display_name',
+                    'service_description',
+                    'service_display_name',
+                    'timestamp',
+                    'state',
+                    'output',
+                    'type'
+                )
+            )
+            ->where('object_type', $this->type)
             ->where('host_name', $this->host_name);
+
         if ($this->type === self::TYPE_SERVICE) {
             $eventHistory->where('service_description', $this->service_description);
         }
-        $this->eventhistory = $eventHistory;
+
+        $this->eventhistory = $eventHistory->applyFilter($this->getFilter());
         return $this;
     }
 
@@ -479,12 +484,9 @@ abstract class MonitoredObject implements Filterable
      */
     public function fetchStats()
     {
-        $this->stats = $this->backend->select()->from('statusSummary', array(
+        $this->stats = $this->backend->select()->from('servicestatussummary', array(
             'services_total',
             'services_ok',
-            'services_problem',
-            'services_problem_handled',
-            'services_problem_unhandled',
             'services_critical',
             'services_critical_unhandled',
             'services_critical_handled',
@@ -497,7 +499,7 @@ abstract class MonitoredObject implements Filterable
             'services_pending',
         ))
             ->where('service_host_name', $this->host_name)
-            ->getQuery()
+            ->applyFilter($this->getFilter())
             ->fetchRow();
         return $this;
     }
@@ -569,17 +571,46 @@ abstract class MonitoredObject implements Filterable
      *
      * @return string   The notes as a string
      */
-    public function getNotes() {}
+    public abstract function getNotes();
 
     /**
      * Get all note urls configured for this monitored object
      *
      * @return array    All note urls as a string
      */
-    public function getNotesUrls() {}
+    public abstract function getNotesUrls();
+
+    /**
+     * Get all action urls configured for this monitored object
+     *
+     * @return array    All note urls as a string
+     */
+    public function getActionUrls()
+    {
+        return $this->resolveAllStrings(
+            MonitoredObject::parseAttributeUrls($this->action_url)
+        );
+    }
+
+    /**
+     * Resolve macros in all given strings in the current object context
+     *
+     * @param   array   $strs   An array of urls as string
+     * @return  type
+     */
+    protected function resolveAllStrings(array $strs)
+    {
+        foreach ($strs as $i => $str) {
+            $strs[$i] = Macro::resolveMacros($str, $this);
+        }
+        return $strs;
+    }
 
     /**
      * Parse the content of the action_url or notes_url attributes
+     *
+     * Find all occurences of http links, separated by whitespaces and quoted
+     * by single or double-ticks.
      *
      * @link http://docs.icinga.org/latest/de/objectdefinitions.html
      *

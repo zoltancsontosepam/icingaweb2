@@ -4,7 +4,6 @@
  * Icinga.History
  *
  * This is where we care about the browser History API
- *
  */
 (function (Icinga, $) {
 
@@ -89,7 +88,6 @@
                 }
             });
 
-            // TODO: update navigation
             // Did we find any URL? Then push it!
             if (url !== '') {
                 this.push(url);
@@ -110,7 +108,26 @@
                 return;
             }
             this.lastPushUrl = url;
-            window.history.pushState({icinga: true}, null, url);
+            window.history.pushState(
+                this.getBehaviorState(),
+                null,
+                url
+            );
+        },
+
+        /**
+         * Fetch the current state of all JS behaviors that need history support
+         *
+         * @return {Object} A key-value map, mapping behavior names to state
+         */
+        getBehaviorState: function () {
+            var data = {};
+            $.each(this.icinga.behaviors, function (i, behavior) {
+                if (behavior.onPushState instanceof Function) {
+                    data[i] = behavior.onPushState();
+                }
+            });
+            return data;
         },
 
         /**
@@ -139,8 +156,17 @@
                 icinga.logger.debug('History state', event.originalEvent.state);
             }
 
+            // keep the last pushed url in sync with history changes
+            self.lastPushUrl = location.href;
+
             self.applyLocationBar();
 
+            // notify behaviors of the state change
+            $.each(this.icinga.behaviors, function (i, behavior) {
+                if (behavior.onPopState instanceof Function && history.state) {
+                    behavior.onPopState(location.href, history.state[i]);
+                }
+            });
         },
 
         applyLocationBar: function (onload) {
@@ -172,7 +198,7 @@
                         redirect.val() + '#!' + parts[1]
                     );
                 } else {
-                    if ($('#col2').data('icingaUrl') !== main) {
+                    if ($('#col2').data('icingaUrl') !== parts[1]) {
                         icinga.loader.loadUrl(
                             parts[1],
                             $('#col2')

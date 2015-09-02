@@ -3,28 +3,58 @@
 
 namespace Icinga\Web;
 
+use Icinga\Application\Icinga;
 use Zend_Controller_Request_Http;
 use Icinga\User;
 
 /**
- * Request to handle special attributes
+ * A request
  */
 class Request extends Zend_Controller_Request_Http
 {
     /**
-     * User object
+     * User if authenticated
      *
-     * @var User
+     * @var User|null
      */
-    private $user;
+    protected $user;
 
     /**
+     * Unique identifier
+     *
      * @var string
      */
-    private $uniqueId;
+    protected $uniqueId;
 
-    private $url;
+    /**
+     * Request URL
+     *
+     * @var Url
+     */
+    protected $url;
 
+    /**
+     * Response
+     *
+     * @var Response
+     */
+    protected $response;
+
+    /**
+     * Get whether the request seems to be an API request
+     *
+     * @return bool
+     */
+    public function getIsApiRequest()
+    {
+        return $this->getHeader('Accept') === 'application/json';
+    }
+
+    /**
+     * Get the request URL
+     *
+     * @return Url
+     */
     public function getUrl()
     {
         if ($this->url === null) {
@@ -34,23 +64,40 @@ class Request extends Zend_Controller_Request_Http
     }
 
     /**
-     * Setter for user
+     * Get the user if authenticated
      *
-     * @param User $user
-     */
-    public function setUser(User $user)
-    {
-        $this->user = $user;
-    }
-
-    /**
-     * Getter for user
-     *
-     * @return User
+     * @return User|null
      */
     public function getUser()
     {
         return $this->user;
+    }
+
+    /**
+     * Set the authenticated user
+     *
+     * @param   User $user
+     *
+     * @return  $this
+     */
+    public function setUser(User $user)
+    {
+        $this->user = $user;
+        return $this;
+    }
+
+    /**
+     * Get the response
+     *
+     * @return Response
+     */
+    public function getResponse()
+    {
+        if ($this->response === null) {
+            $this->response = Icinga::app()->getResponse();
+        }
+
+        return $this->response;
     }
 
     /**
@@ -59,6 +106,10 @@ class Request extends Zend_Controller_Request_Http
      * Call this whenever an ID might show up multiple times in different containers. This function is useful
      * for ensuring unique ids on sites, even if we combine the HTML of different requests into one site,
      * while still being able to reference elements uniquely in the same request.
+     *
+     * @param   string  $id
+     *
+     * @return  string  The id suffixed w/ an identifier unique to this request
      */
     public function protectId($id)
     {
@@ -66,5 +117,16 @@ class Request extends Zend_Controller_Request_Http
             $this->uniqueId = Window::generateId();
         }
         return $id . '-' . $this->uniqueId;
+    }
+
+    /**
+     * Detect whether cookies are enabled
+     *
+     * @return bool
+     */
+    public function hasCookieSupport()
+    {
+        $cookie = new Cookie($this);
+        return $cookie->isSupported();
     }
 }

@@ -1,6 +1,9 @@
 <?php
 /* Icinga Web 2 | (c) 2013-2015 Icinga Development Team | GPLv2+ */
 
+namespace Icinga\Controllers;
+
+use Zend_Controller_Plugin_ErrorHandler;
 use Icinga\Application\Icinga;
 use Icinga\Application\Logger;
 use Icinga\Exception\Http\HttpMethodNotAllowedException;
@@ -37,7 +40,7 @@ class ErrorController extends ActionController
                 $path = array_shift($path);
                 $this->getResponse()->setHttpResponseCode(404);
                 $this->view->message = $this->translate('Page not found.');
-                if ($modules->hasInstalled($path) && ! $modules->hasEnabled($path)) {
+                if ($this->Auth()->isAuthenticated() && $modules->hasInstalled($path) && ! $modules->hasEnabled($path)) {
                     $this->view->message .= ' ' . sprintf(
                         $this->translate('Enabling the "%s" module might help!'),
                         $path

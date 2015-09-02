@@ -1,14 +1,17 @@
 <?php
 /* Icinga Web 2 | (c) 2013-2015 Icinga Development Team | GPLv2+ */
 
-use Icinga\Module\Monitoring\Controller as MonitoringController;
-use Icinga\Web\Widget\Tabextension\DashboardAction;
-use Icinga\Web\Url;
+namespace Icinga\Module\Monitoring\Controllers;
 
-class Monitoring_TacticalController extends MonitoringController
+use Icinga\Module\Monitoring\Controller;
+use Icinga\Web\Url;
+use Icinga\Web\Widget\Tabextension\DashboardAction;
+
+class TacticalController extends Controller
 {
     public function indexAction()
     {
+        $this->setAutorefreshInterval(15);
         $this->getTabs()->add(
             'tactical_overview',
             array(
@@ -20,9 +23,8 @@ class Monitoring_TacticalController extends MonitoringController
                 'url'   => Url::fromRequest()
             )
         )->extend(new DashboardAction())->activate('tactical_overview');
-
-        $this->view->statusSummary = $this->backend->select()->from(
-            'statusSummary',
+        $stats = $this->backend->select()->from(
+            'statussummary',
             array(
                 'hosts_up',
                 'hosts_pending',
@@ -79,6 +81,8 @@ class Monitoring_TacticalController extends MonitoringController
                 'hosts_flapping',
                 'services_flapping'
             )
-        )->getQuery()->fetchRow();
+        );
+        $this->applyRestriction('monitoring/filter/objects', $stats);
+        $this->view->statusSummary = $stats->fetchRow();
     }
 }

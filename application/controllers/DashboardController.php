@@ -1,13 +1,16 @@
 <?php
 /* Icinga Web 2 | (c) 2013-2015 Icinga Development Team | GPLv2+ */
 
-use \Exception;
+namespace Icinga\Controllers;
+
+use Exception;
+use Zend_Controller_Action_Exception;
 use Icinga\Exception\ProgrammingError;
 use Icinga\Forms\ConfirmRemovalForm;
 use Icinga\Forms\Dashboard\DashletForm;
+use Icinga\Web\Controller\ActionController;
 use Icinga\Web\Form;
 use Icinga\Web\Notification;
-use Icinga\Web\Controller\ActionController;
 use Icinga\Web\Url;
 use Icinga\Web\Widget\Dashboard;
 use Icinga\Web\Widget\Tabextension\DashboardSettings;
@@ -78,7 +81,7 @@ class DashboardController extends ActionController
         $dashboard = $this->dashboard;
         $form = new DashletForm();
         $form->setDashboard($dashboard);
-        $form->setSubmitLabel(t('Update Dashlet'));
+        $form->setSubmitLabel($this->translate('Update Dashlet'));
         if (! $this->_request->getParam('pane')) {
             throw new Zend_Controller_Action_Exception(
                 'Missing parameter "pane"',

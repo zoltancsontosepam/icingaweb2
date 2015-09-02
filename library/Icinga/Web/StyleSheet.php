@@ -12,19 +12,20 @@ class StyleSheet
     protected static $lessFiles = array(
         '../application/fonts/fontello-ifont/css/ifont-embedded.css',
         'css/vendor/tipsy.css',
+        'css/icinga/mixins.less',
         'css/icinga/defaults.less',
         'css/icinga/animation.less',
         'css/icinga/layout-colors.less',
         'css/icinga/layout-structure.less',
         'css/icinga/menu.less',
         'css/icinga/header-elements.less',
+        'css/icinga/footer-elements.less',
         'css/icinga/main-content.less',
         'css/icinga/tabs.less',
         'css/icinga/forms.less',
         'css/icinga/setup.less',
         'css/icinga/widgets.less',
         'css/icinga/pagination.less',
-        'css/icinga/monitoring-colors.less',
         'css/icinga/selection-toolbar.less',
         'css/icinga/login.less',
         'css/icinga/controls.less'
@@ -76,7 +77,11 @@ class StyleSheet
         $files = $lessFiles;
         foreach ($app->getModuleManager()->getLoadedModules() as $name => $module) {
             if ($module->hasCss()) {
-                $files[] = $module->getCssFilename();
+                foreach ($module->getCssFiles() as $path) {
+                    if (file_exists($path)) {
+                        $files[] = $path;
+                    }
+                }
             }
         }
 
@@ -99,6 +104,7 @@ class StyleSheet
         }
 
         $less = new LessCompiler();
+        $less->disableExtendedImport();
         foreach ($lessFiles as $file) {
             $less->addFile($file);
         }

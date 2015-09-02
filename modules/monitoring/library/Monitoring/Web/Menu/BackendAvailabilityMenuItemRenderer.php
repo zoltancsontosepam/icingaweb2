@@ -3,60 +3,63 @@
 
 namespace Icinga\Module\Monitoring\Web\Menu;
 
-use Icinga\Web\Menu as Menu;
+use Icinga\Web\Menu;
+use Icinga\Web\Menu\BadgeMenuItemRenderer;
 use Icinga\Module\Monitoring\Backend\MonitoringBackend;
-use Icinga\Web\Menu\MenuItemRenderer;
 
-class BackendAvailabilityMenuItemRenderer extends MenuItemRenderer
+class BackendAvailabilityMenuItemRenderer extends BadgeMenuItemRenderer
 {
     /**
-     * Checks whether the monitoring backend is running or not
+     * Get whether or not the monitoring backend is currently running
      *
-     * @return mixed
+     * @return bool
      */
     protected function isCurrentlyRunning()
     {
-        return MonitoringBackend::instance()->select()->from(
-            'programstatus',
-            array(
-                'is_currently_running'
+        $programStatus = MonitoringBackend::instance()
+            ->select()
+            ->from(
+                'programstatus',
+                array('is_currently_running')
             )
-        )->getQuery()->fetchRow()->is_currently_running;
+            ->fetchOne();
+        return $programStatus !== false ? (bool) $programStatus : false;
     }
 
     /**
-     * @see MenuItemRenderer::render()
-     */
-    public function render(Menu $menu)
-    {
-        return $this->getBadge() . $this->createLink($menu);
-    }
-
-    protected function getBadge()
-    {
-        if (! (bool)$this->isCurrentlyRunning()) {
-            return sprintf(
-                '<div title="%s" class="badge-container"><span class="badge badge-critical">%s</span></div>',
-                mt('monitoring', 'monitoring backend is not running'),
-                1
-            );
-        }
-        return '';
-    }
-
-    /**
-     * Get the problem data for the summary
+     * The css class of the badge
      *
-     * @return array|null
+     * @return string
      */
-    public function getSummary()
+    public function getState()
     {
-        if (! (bool)$this->isCurrentlyRunning()) {
-            return array(
-                'problems' => 1,
-                'title' => mt('monitoring', 'monitoring backend is not running')
-            );
+        return self::STATE_CRITICAL;
+    }
+
+    /**
+     *  The amount of items to display in the badge
+     *
+     * @return int
+     */
+    public function getCount()
+    {
+        if (! $this->isCurrentlyRunning()) {
+            return 1;
         }
-        return null;
+        return 0;
+    }
+
+    /**
+     * The tooltip title
+     *
+     * @return string
+     * @throws \Icinga\Exception\ConfigurationError
+     */
+    public function getTitle()
+    {
+        return sprintf(
+            mt('monitoring', 'Monitoring backend %s is not running'),
+            MonitoringBackend::instance()->getName()
+        );
     }
 }

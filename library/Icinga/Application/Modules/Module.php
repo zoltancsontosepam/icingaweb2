@@ -4,23 +4,24 @@
 namespace Icinga\Application\Modules;
 
 use Exception;
+use Zend_Controller_Router_Route;
 use Zend_Controller_Router_Route_Abstract;
-use Zend_Controller_Router_Route as Route;
-use Zend_Controller_Router_Route_Regex as RegexRoute;
+use Zend_Controller_Router_Route_Regex;
 use Icinga\Application\ApplicationBootstrap;
 use Icinga\Application\Config;
 use Icinga\Application\Icinga;
 use Icinga\Application\Logger;
 use Icinga\Data\ConfigObject;
+use Icinga\Exception\IcingaException;
+use Icinga\Exception\ProgrammingError;
+use Icinga\Module\Setup\SetupWizard;
+use Icinga\Util\File;
 use Icinga\Util\Translator;
+use Icinga\Web\Controller\Dispatcher;
 use Icinga\Web\Hook;
 use Icinga\Web\Menu;
 use Icinga\Web\Widget;
 use Icinga\Web\Widget\Dashboard\Pane;
-use Icinga\Module\Setup\SetupWizard;
-use Icinga\Util\File;
-use Icinga\Exception\ProgrammingError;
-use Icinga\Exception\IcingaException;
 
 /**
  * Module handling
@@ -102,7 +103,7 @@ class Module
     /**
      * Module metadata (version...)
      *
-     * @var stdClass
+     * @var object
      */
     private $metadata;
 
@@ -112,6 +113,13 @@ class Module
      * @var bool
      */
     private $triedToLaunchConfigScript = false;
+
+    /**
+     * Whether the module's namespaces have been registered on our autoloader
+     *
+     * @var bool
+     */
+    protected $registeredAutoloader = false;
 
     /**
      * Whether this module has been registered
@@ -156,6 +164,20 @@ class Module
     private $app;
 
     /**
+     * The CSS/LESS files this module provides
+     *
+     * @var array
+     */
+    protected $cssFiles = array();
+
+    /**
+     * The Javascript files this module provides
+     *
+     * @var array
+     */
+    protected $jsFiles = array();
+
+    /**
      * Routes to add to the route chain
      *
      * @var array Array of name-route pairs
@@ -167,7 +189,7 @@ class Module
     /**
      * A set of menu elements
      *
-     * @var array
+     * @var Menu[]
      */
     protected $menuItems = array();
 
@@ -179,85 +201,25 @@ class Module
     protected $paneItems = array();
 
     /**
+     * A set of objects representing a searchUrl configuration
+     *
      * @var array
      */
     protected $searchUrls = array();
 
     /**
-     * Provide a search URL
+     * This module's user backends providing several authentication mechanisms
      *
-     * @param string    $title
-     * @param string    $url
-     * @param int       $priority
+     * @var array
      */
-    public function provideSearchUrl($title, $url, $priority = 0)
-    {
-        $searchUrl = (object) array(
-            'title'     => (string) $title,
-            'url'       => (string) $url,
-            'priority'  => (int) $priority
-        );
-
-        $this->searchUrls[] = $searchUrl;
-    }
-
-    public function getSearchUrls()
-    {
-        $this->launchConfigScript();
-        return $this->searchUrls;
-    }
+    protected $userBackends = array();
 
     /**
-     * Get all Menu Items
+     * This module's user group backends
      *
-     * @return array
+     * @var array
      */
-    public function getPaneItems()
-    {
-        $this->launchConfigScript();
-        return $this->paneItems;
-    }
-
-    /**
-     * Add a pane to dashboard
-     *
-     * @param $name
-     * @return Pane
-     */
-    protected function dashboard($name)
-    {
-        $this->paneItems[$name] = new Pane($name);
-        return $this->paneItems[$name];
-    }
-
-    /**
-     * Get all Menu Items
-     *
-     * @return array
-     */
-    public function getMenuItems()
-    {
-        $this->launchConfigScript();
-        return $this->menuItems;
-    }
-
-    /**
-     * Add a menu Section to the Sidebar menu
-     *
-     * @param $name
-     * @param array $properties
-     * @return mixed
-     */
-    protected function menuSection($name, array $properties = array())
-    {
-        if (array_key_exists($name, $this->menuItems)) {
-            $this->menuItems[$name]->setProperties($properties);
-        } else {
-            $this->menuItems[$name] = new Menu($name, new ConfigObject($properties));
-        }
-
-        return $this->menuItems[$name];
-    }
+    protected $userGroupBackends = array();
 
     /**
      * Create a new module object
@@ -284,6 +246,91 @@ class Module
     }
 
     /**
+     * Provide a search URL
+     *
+     * @param   string    $title
+     * @param   string    $url
+     * @param   int       $priority
+     *
+     * @return  $this
+     */
+    public function provideSearchUrl($title, $url, $priority = 0)
+    {
+        $this->searchUrls[] = (object) array(
+            'title'     => (string) $title,
+            'url'       => (string) $url,
+            'priority'  => (int) $priority
+        );
+
+        return $this;
+    }
+
+    /**
+     * Get this module's search urls
+     *
+     * @return array
+     */
+    public function getSearchUrls()
+    {
+        $this->launchConfigScript();
+        return $this->searchUrls;
+    }
+
+    /**
+     * Get all pane items
+     *
+     * @return array
+     */
+    public function getPaneItems()
+    {
+        $this->launchConfigScript();
+        return $this->paneItems;
+    }
+
+    /**
+     * Add a pane to dashboard
+     *
+     * @param   string $name
+     *
+     * @return  Pane
+     */
+    protected function dashboard($name)
+    {
+        $this->paneItems[$name] = new Pane($name);
+        return $this->paneItems[$name];
+    }
+
+    /**
+     * Get all menu items
+     *
+     * @return array
+     */
+    public function getMenuItems()
+    {
+        $this->launchConfigScript();
+        return $this->menuItems;
+    }
+
+    /**
+     * Add or get a menu section
+     *
+     * @param   string  $name
+     * @param   array   $properties
+     *
+     * @return  Menu
+     */
+    protected function menuSection($name, array $properties = array())
+    {
+        if (array_key_exists($name, $this->menuItems)) {
+            $this->menuItems[$name]->setProperties($properties);
+        } else {
+            $this->menuItems[$name] = new Menu($name, new ConfigObject($properties));
+        }
+
+        return $this->menuItems[$name];
+    }
+
+    /**
      * Register module
      *
      * @return bool
@@ -306,16 +353,16 @@ class Module
             );
             return false;
         }
-
         $this->registerWebIntegration();
         $this->registered = true;
+
         return true;
     }
 
     /**
-     * Return whether this module has been registered
+     * Get whether this module has been registered
      *
-     * @return  bool
+     * @return bool
      */
     public function isRegistered()
     {
@@ -325,9 +372,9 @@ class Module
     /**
      * Test for an enabled module by name
      *
-     * @param string $name
+     * @param   string $name
      *
-     * @return boolean
+     * @return  bool
      */
     public static function exists($name)
     {
@@ -335,7 +382,7 @@ class Module
     }
 
     /**
-     * Get module by name
+     * Get a module by name
      *
      * @param string $name
      * @param bool   $autoload
@@ -357,13 +404,31 @@ class Module
     }
 
     /**
+     * Provide an additional CSS/LESS file
+     *
+     * @param   string  $path   The path to the file, relative to self::$cssdir
+     *
+     * @return  $this
+     */
+    protected function provideCssFile($path)
+    {
+        $this->cssFiles[] = $this->cssdir . DIRECTORY_SEPARATOR . $path;
+        return $this;
+    }
+
+    /**
      * Test if module provides css
      *
      * @return bool
      */
     public function hasCss()
     {
-        return file_exists($this->getCssFilename());
+        if (file_exists($this->getCssFilename())) {
+            return true;
+        }
+
+        $this->launchConfigScript();
+        return !empty($this->cssFiles);
     }
 
     /**
@@ -377,13 +442,44 @@ class Module
     }
 
     /**
+     * Return the CSS/LESS files this module provides
+     *
+     * @return  array
+     */
+    public function getCssFiles()
+    {
+        $this->launchConfigScript();
+        $files = $this->cssFiles;
+        $files[] = $this->getCssFilename();
+        return $files;
+    }
+
+    /**
+     * Provide an additional Javascript file
+     *
+     * @param   string  $path   The path to the file, relative to self::$jsdir
+     *
+     * @return  $this
+     */
+    protected function provideJsFile($path)
+    {
+        $this->jsFiles[] = $this->jsdir . DIRECTORY_SEPARATOR . $path;
+        return $this;
+    }
+
+    /**
      * Test if module provides js
      *
      * @return bool
      */
     public function hasJs()
     {
-        return file_exists($this->getJsFilename());
+        if (file_exists($this->getJsFilename())) {
+            return true;
+        }
+
+        $this->launchConfigScript();
+        return !empty($this->jsFiles);
     }
 
     /**
@@ -397,7 +493,20 @@ class Module
     }
 
     /**
-     * Getter for module name
+     * Return the Javascript files this module provides
+     *
+     * @return  array
+     */
+    public function getJsFiles()
+    {
+        $this->launchConfigScript();
+        $files = $this->jsFiles;
+        $files[] = $this->getJsFilename();
+        return $files;
+    }
+
+    /**
+     * Get the module name
      *
      * @return string
      */
@@ -407,7 +516,7 @@ class Module
     }
 
     /**
-     * Getter for module version
+     * Get the module version
      *
      * @return string
      */
@@ -417,7 +526,7 @@ class Module
     }
 
     /**
-     * Get module description
+     * Get the module description
      *
      * @return string
      */
@@ -427,7 +536,7 @@ class Module
     }
 
     /**
-     * Get module title (short description)
+     * Get the module title (short description)
      *
      * @return string
      */
@@ -437,9 +546,9 @@ class Module
     }
 
     /**
-     * Getter for module version
+     * Get the module dependencies
      *
-     * @return Array
+     * @return array
      */
     public function getDependencies()
     {
@@ -534,7 +643,7 @@ class Module
     }
 
     /**
-     * Getter for css file name
+     * Get the module's CSS directory
      *
      * @return string
      */
@@ -544,17 +653,7 @@ class Module
     }
 
     /**
-     * Getter for base directory
-     *
-     * @return string
-     */
-    public function getBaseDir()
-    {
-        return $this->basedir;
-    }
-
-    /**
-     * Get the controller directory
+     * Get the module's controller directory
      *
      * @return string
      */
@@ -564,7 +663,17 @@ class Module
     }
 
     /**
-     * Getter for library directory
+     * Get the module's base directory
+     *
+     * @return string
+     */
+    public function getBaseDir()
+    {
+        return $this->basedir;
+    }
+
+    /**
+     * Get the module's library directory
      *
      * @return string
      */
@@ -574,7 +683,7 @@ class Module
     }
 
     /**
-     * Getter for configuration directory
+     * Get the module's configuration directory
      *
      * @return string
      */
@@ -584,7 +693,7 @@ class Module
     }
 
     /**
-     * Getter for form directory
+     * Get the module's form directory
      *
      * @return string
      */
@@ -594,11 +703,11 @@ class Module
     }
 
     /**
-     * Getter for module config object
+     * Get the module config
      *
-     * @param string $file
+     * @param   string $file
      *
-     * @return Config
+     * @return  Config
      */
     public function getConfig($file = 'config')
     {
@@ -606,9 +715,7 @@ class Module
     }
 
     /**
-     * Retrieve provided permissions
-     *
-     * @param string $name Permission name
+     * Get provided permissions
      *
      * @return array
      */
@@ -619,9 +726,8 @@ class Module
     }
 
     /**
-     * Retrieve provided restrictions
+     * Get provided restrictions
      *
-     * @param  string  $name Restriction name
      * @return array
      */
     public function getProvidedRestrictions()
@@ -631,24 +737,11 @@ class Module
     }
 
     /**
-     * Whether the given permission name is supported
+     * Whether the module provides the given restriction
      *
-     * @param string $name Permission name
+     * @param   string $name Restriction name
      *
-     * @return bool
-     */
-    public function providesPermission($name)
-    {
-        $this->launchConfigScript();
-        return array_key_exists($name, $this->permissionList);
-    }
-
-    /**
-     * Whether the given restriction name is supported
-     *
-     * @param string $name Restriction name
-     *
-     * @return bool
+     * @return  bool
      */
     public function providesRestriction($name)
     {
@@ -657,14 +750,28 @@ class Module
     }
 
     /**
-     * Retrieve this modules configuration tabs
+     * Whether the module provides the given permission
      *
-     * @return Icinga\Web\Widget\Tabs
+     * @param   string $name Permission name
+     *
+     * @return  bool
+     */
+    public function providesPermission($name)
+    {
+        $this->launchConfigScript();
+        return array_key_exists($name, $this->permissionList);
+    }
+
+    /**
+     * Get the module configuration tabs
+     *
+     * @return \Icinga\Web\Widget\Tabs
      */
     public function getConfigTabs()
     {
         $this->launchConfigScript();
         $tabs = Widget::create('tabs');
+        /** @var \Icinga\Web\Widget\Tabs $tabs */
         $tabs->add('info', array(
             'url'       => 'config/module',
             'urlParams' => array('name' => $this->getName()),
@@ -677,9 +784,9 @@ class Module
     }
 
     /**
-     * Whether this module provides a setup wizard
+     * Whether the module provides a setup wizard
      *
-     * @return  bool
+     * @return bool
      */
     public function providesSetupWizard()
     {
@@ -693,9 +800,9 @@ class Module
     }
 
     /**
-     * Return this module's setup wizard
+     * Get the module's setup wizard
      *
-     * @return  SetupWizard
+     * @return SetupWizard
      */
     public function getSetupWizard()
     {
@@ -703,12 +810,34 @@ class Module
     }
 
     /**
+     * Get the module's user backends
+     *
+     * @return array
+     */
+    public function getUserBackends()
+    {
+        $this->launchConfigScript();
+        return $this->userBackends;
+    }
+
+    /**
+     * Get the module's user group backends
+     *
+     * @return array
+     */
+    public function getUserGroupBackends()
+    {
+        $this->launchConfigScript();
+        return $this->userGroupBackends;
+    }
+
+    /**
      * Provide a named permission
      *
-     * @param string $name Unique permission name
-     * @param string $name Permission description
+     * @param   string $name        Unique permission name
+     * @param   string $description Permission description
      *
-     * @return void
+     * @throws  IcingaException     If the permission is already provided
      */
     protected function providePermission($name, $description)
     {
@@ -727,10 +856,10 @@ class Module
     /**
      * Provide a named restriction
      *
-     * @param string $name        Unique restriction name
-     * @param string $description Restriction description
+     * @param   string $name        Unique restriction name
+     * @param   string $description Restriction description
      *
-     * @return void
+     * @throws  IcingaException     If the restriction is already provided
      */
     protected function provideRestriction($name, $description)
     {
@@ -749,15 +878,16 @@ class Module
     /**
      * Provide a module config tab
      *
-     * @param string $name   Unique tab name
-     * @param string $config Tab config
+     * @param   string  $name       Unique tab name
+     * @param   array   $config     Tab config
      *
-     * @return $this
+     * @return  $this
+     * @throws  ProgrammingError    If $config lacks the key 'url'
      */
     protected function provideConfigTab($name, $config = array())
     {
         if (! array_key_exists('url', $config)) {
-            throw new ProgrammingError('A module config tab MUST provide and "url"');
+            throw new ProgrammingError('A module config tab MUST provide a "url"');
         }
         $config['url'] = $this->getName() . '/' . ltrim($config['url'], '/');
         $this->configTabs[$name] = $config;
@@ -767,7 +897,7 @@ class Module
     /**
      * Provide a setup wizard
      *
-     * @param   string  $className      The name of the class
+     * @param   string $className The name of the class
      *
      * @return  $this
      */
@@ -778,23 +908,58 @@ class Module
     }
 
     /**
-     * Register new namespaces on the autoloader
+     * Provide a user backend capable of authenticating users
+     *
+     * @param   string $identifier  The identifier of the new backend type
+     * @param   string $className   The name of the class
+     *
+     * @return  $this
+     */
+    protected function provideUserBackend($identifier, $className)
+    {
+        $this->userBackends[strtolower($identifier)] = $className;
+        return $this;
+    }
+
+    /**
+     * Provide a user group backend
+     *
+     * @param   string $identifier  The identifier of the new backend type
+     * @param   string $className   The name of the class
+     *
+     * @return  $this
+     */
+    protected function provideUserGroupBackend($identifier, $className)
+    {
+        $this->userGroupBackends[strtolower($identifier)] = $className;
+        return $this;
+    }
+
+    /**
+     * Register module namespaces on our class loader
      *
      * @return $this
      */
     protected function registerAutoloader()
     {
+        if ($this->registeredAutoloader) {
+            return $this;
+        }
+
+        $loader = $this->app->getLoader();
         $moduleName = ucfirst($this->getName());
 
         $moduleLibraryDir = $this->getLibDir(). '/'. $moduleName;
         if (is_dir($moduleLibraryDir)) {
-            $this->app->getLoader()->registerNamespace('Icinga\\Module\\' . $moduleName, $moduleLibraryDir);
+            $loader->registerNamespace('Icinga\\Module\\' . $moduleName, $moduleLibraryDir);
         }
 
         $moduleFormDir = $this->getFormDir();
         if (is_dir($moduleFormDir)) {
-            $this->app->getLoader()->registerNamespace('Icinga\\Module\\' . $moduleName. '\\Forms',  $moduleFormDir);
+            $loader->registerNamespace('Icinga\\Module\\' . $moduleName. '\\Forms', $moduleFormDir);
         }
+
+        $this->registeredAutoloader = true;
 
         return $this;
     }
@@ -813,7 +978,7 @@ class Module
     }
 
     /**
-     * return bool Whether this module has translations
+     * Get whether the module has translations
      */
     public function hasLocales()
     {
@@ -823,7 +988,7 @@ class Module
     /**
      * List all available locales
      *
-     * return array Locale list
+     * @return array Locale list
      */
     public function listLocales()
     {
@@ -853,52 +1018,58 @@ class Module
      */
     protected function registerWebIntegration()
     {
-        if (!$this->app->isWeb()) {
+        if (! $this->app->isWeb()) {
             return $this;
         }
-
-        if (file_exists($this->controllerdir) && is_dir($this->controllerdir)) {
+        $moduleControllerDir = $this->getControllerDir();
+        if (is_dir($moduleControllerDir)) {
             $this->app->getfrontController()->addControllerDirectory(
-                $this->controllerdir,
-                $this->name
+                $moduleControllerDir,
+                $this->getName()
+            );
+            $this->app->getLoader()->registerNamespace(
+                'Icinga\\Module\\' . ucfirst($this->getName()) . '\\' . Dispatcher::CONTROLLER_NAMESPACE,
+                $moduleControllerDir
             );
         }
-
-        $this->registerLocales()
-             ->registerRoutes();
+        $this
+            ->registerLocales()
+            ->registerRoutes();
         return $this;
     }
 
     /**
-     * Add routes for static content and any route added via addRoute() to the route chain
+     * Add routes for static content and any route added via {@link addRoute()} to the route chain
      *
-     * @return  $this
-     * @see     addRoute()
+     * @return $this
      */
     protected function registerRoutes()
     {
         $router = $this->app->getFrontController()->getRouter();
+        /** @var \Zend_Controller_Router_Rewrite $router */
         foreach ($this->routes as $name => $route) {
             $router->addRoute($name, $route);
         }
         $router->addRoute(
             $this->name . '_jsprovider',
-            new Route(
+            new Zend_Controller_Router_Route(
                 'js/' . $this->name . '/:file',
                 array(
+                    'action'        => 'javascript',
                     'controller'    => 'static',
-                    'action'        =>'javascript',
+                    'module'        => 'default',
                     'module_name'   => $this->name
                 )
             )
         );
         $router->addRoute(
             $this->name . '_img',
-            new RegexRoute(
+            new Zend_Controller_Router_Route_Regex(
                 'img/' . $this->name . '/(.+)',
                 array(
-                    'controller'    => 'static',
                     'action'        => 'img',
+                    'controller'    => 'static',
+                    'module'        => 'default',
                     'module_name'   => $this->name
                 ),
                 array(
@@ -922,14 +1093,14 @@ class Module
     /**
      * Include a php script if it is readable
      *
-     * @param string $file File to include
+     * @param   string $file File to include
      *
-     * @return $this
+     * @return  $this
      */
     protected function includeScript($file)
     {
-        if (file_exists($file) && is_readable($file) === true) {
-            include($file);
+        if (file_exists($file) && is_readable($file)) {
+            include $file;
         }
 
         return $this;
@@ -937,28 +1108,27 @@ class Module
 
     /**
      * Run module config script
+     *
+     * @return $this
      */
     protected function launchConfigScript()
     {
-        if ($this->triedToLaunchConfigScript || !$this->registered) {
-            return;
+        if ($this->triedToLaunchConfigScript) {
+            return $this;
         }
         $this->triedToLaunchConfigScript = true;
-        if (! file_exists($this->configScript)
-         || ! is_readable($this->configScript)) {
-            return;
-        }
-        include($this->configScript);
+        $this->registerAutoloader();
+        return $this->includeScript($this->configScript);
     }
 
     /**
      * Register hook
      *
-     * @param string $name
-     * @param string $class
-     * @param string $key
+     * @param   string $name
+     * @param   string $class
+     * @param   string $key
      *
-     * @return $this
+     * @return  $this
      */
     protected function registerHook($name, $class, $key = null)
     {
@@ -987,12 +1157,8 @@ class Module
     }
 
     /**
-     * Translate a string with the global mt()
-     *
-     * @param $string
-     * @param null $context
-     *
-     * @return mixed|string
+     * (non-PHPDoc)
+     * @see Translator::translate() For the function documentation.
      */
     protected function translate($string, $context = null)
     {

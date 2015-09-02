@@ -3,7 +3,7 @@
 
 namespace Icinga\Application;
 
-require_once __DIR__ . '/ApplicationBootstrap.php';
+require_once __DIR__ . '/EmbeddedWeb.php';
 
 use Zend_Controller_Action_HelperBroker;
 use Zend_Controller_Front;
@@ -11,14 +11,12 @@ use Zend_Controller_Router_Route;
 use Zend_Layout;
 use Zend_Paginator;
 use Zend_View_Helper_PaginationControl;
-use Icinga\Application\Logger;
-use Icinga\Authentication\Manager;
+use Icinga\Authentication\Auth;
 use Icinga\User;
 use Icinga\Util\TimezoneDetect;
 use Icinga\Util\Translator;
+use Icinga\Web\Controller\Dispatcher;
 use Icinga\Web\Notification;
-use Icinga\Web\Request;
-use Icinga\Web\Response;
 use Icinga\Web\Session;
 use Icinga\Web\Session\Session as BaseSession;
 use Icinga\Web\View;
@@ -28,11 +26,11 @@ use Icinga\Web\View;
  *
  * Usage example:
  * <code>
- * use Icinga\Application\EmbeddedWeb;
- * EmbeddedWeb::start();
+ * use Icinga\Application\Web;
+ * Web::start();
  * </code>
  */
-class Web extends ApplicationBootstrap
+class Web extends EmbeddedWeb
 {
     /**
      * View object
@@ -47,13 +45,6 @@ class Web extends ApplicationBootstrap
      * @var Zend_Controller_Front
      */
     private $frontController;
-
-    /**
-     * Request object
-     *
-     * @var Request
-     */
-    private $request;
 
     /**
      * Session object
@@ -91,14 +82,16 @@ class Web extends ApplicationBootstrap
             ->setupResourceFactory()
             ->setupSession()
             ->setupNotifications()
+            ->setupRequest()
+            ->setupResponse()
             ->setupUser()
             ->setupTimezone()
             ->setupLogger()
             ->setupInternationalization()
-            ->setupRequest()
             ->setupZendMvc()
-            ->setupFormNamespace()
+            ->setupNamespaces()
             ->setupModuleManager()
+            ->setupUserBackendFactory()
             ->loadSetupModuleIfNecessary()
             ->loadEnabledModules()
             ->setupRoute()
@@ -151,7 +144,7 @@ class Web extends ApplicationBootstrap
      */
     public function dispatch()
     {
-        $this->frontController->dispatch($this->request, new Response());
+        $this->frontController->dispatch($this->getRequest(), $this->getResponse());
     }
 
     /**
@@ -179,9 +172,11 @@ class Web extends ApplicationBootstrap
      */
     private function setupUser()
     {
-        $auth = Manager::getInstance();
+        $auth = Auth::getInstance();
         if ($auth->isAuthenticated()) {
-            $this->user = $auth->getUser();
+            $user = $auth->getUser();
+            $this->getRequest()->setUser($user);
+            $this->user = $user;
         }
         return $this;
     }
@@ -209,20 +204,6 @@ class Web extends ApplicationBootstrap
     }
 
     /**
-     * Inject dependencies into request
-     *
-     * @return $this
-     */
-    private function setupRequest()
-    {
-        $this->request = new Request();
-        if ($this->user instanceof User) {
-            $this->request->setUser($this->user);
-        }
-        return $this;
-    }
-
-    /**
      * Instantiate front controller
      *
      * @return $this
@@ -230,11 +211,22 @@ class Web extends ApplicationBootstrap
     private function setupFrontController()
     {
         $this->frontController = Zend_Controller_Front::getInstance();
-        $this->frontController->setRequest($this->request);
+        $this->frontController->setDispatcher(new Dispatcher());
+        $this->frontController->setRequest($this->getRequest());
         $this->frontController->setControllerDirectory($this->getApplicationDir('/controllers'));
+
+        $displayExceptions = $this->config->get('global', 'show_stacktraces', true);
+        if ($this->user !== null && $this->user->can('application/stacktraces')) {
+            $displayExceptions = $this->user->getPreferences()->getValue(
+                'icingaweb',
+                'show_stacktraces',
+                $displayExceptions
+            );
+        }
+
         $this->frontController->setParams(
             array(
-                'displayExceptions' => true
+                'displayExceptions' => $displayExceptions
             )
         );
         return $this;
@@ -282,7 +274,7 @@ class Web extends ApplicationBootstrap
      */
     protected function detectTimezone()
     {
-        $auth = Manager::getInstance();
+        $auth = Auth::getInstance();
         if (! $auth->isAuthenticated()
             || ($timezone = $auth->getUser()->getPreferences()->getValue('icingaweb', 'timezone')) === null
         ) {
@@ -303,7 +295,7 @@ class Web extends ApplicationBootstrap
      */
     protected function detectLocale()
     {
-        $auth = Manager::getInstance();
+        $auth = Auth::getInstance();
         if ($auth->isAuthenticated()
             && ($locale = $auth->getUser()->getPreferences()->getValue('icingaweb', 'language')) !== null
         ) {
@@ -316,16 +308,22 @@ class Web extends ApplicationBootstrap
     }
 
     /**
-     * Setup an autoloader namespace for Icinga\Forms
+     * Setup class loader namespaces for Icinga\Controllers and Icinga\Forms
      *
      * @return $this
      */
-    private function setupFormNamespace()
+    private function setupNamespaces()
     {
-        $this->getLoader()->registerNamespace(
-            'Icinga\\Forms',
-            $this->getApplicationDir('forms')
-        );
+        $this
+            ->getLoader()
+            ->registerNamespace(
+                'Icinga\\' . Dispatcher::CONTROLLER_NAMESPACE,
+                $this->getApplicationDir('controllers')
+            )
+            ->registerNamespace(
+                'Icinga\\Forms',
+                $this->getApplicationDir('forms')
+            );
         return $this;
     }
 }

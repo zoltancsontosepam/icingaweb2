@@ -1,8 +1,10 @@
 <?php
 use Icinga\Module\Monitoring\Object\Host;
 
+$hosts->peekAhead($this->compact);
+
 if (! $this->compact): ?>
-<div class="controls">
+<div class="controls separated">
   <?= $this->tabs; ?>
   <div class="dontprint">
     <?= $this->render('list/components/selectioninfo.phtml'); ?>
@@ -15,14 +17,6 @@ if (! $this->compact): ?>
 </div>
 <?php endif ?>
 <div class="content">
-<?php
-
-if (count($hosts) === 0) {
-    echo $this->translate('No hosts found matching the filter') . '</div>';
-    return;
-}
-?>
-
 <table
     data-base-target="_next"
     class="action multiselect"
@@ -54,22 +48,23 @@ if (count($hosts) === 0) {
       <!-- Host / Status / Output -->
       <td>
         <?= $this->iconImage()->host($host) ?>
-        <?= implode(' ', $this->hostFlags($host)) ?>
+        <span class="objectflags"><?= implode(' ', $this->hostFlags($host)) ?></span>
         <?= $this->qlink(
           $host->host_display_name,
           $hostLink,
           null,
           array(
-            'title' => sprintf($this->translate('Show detailed information for host %s'), $host->host_display_name)
+            'title' => sprintf($this->translate('Show detailed information for host %s'), $host->host_display_name),
+            'class' => 'rowaction'
           )
         ); ?>
-        <?php if (isset($host->host_unhandled_services) && $host->host_unhandled_services > 0): ?>
+        <?php if (isset($summary[$host->host_name])): ?>
         <span> (<?= $this->qlink(
           sprintf(
-            $this->translatePlural('%u unhandled service', '%u unhandled services', $host->host_unhandled_services),
-            $host->host_unhandled_services
+            $this->translatePlural('%u unhandled service', '%u unhandled services', $summary[$host->host_name]),
+            $summary[$host->host_name]
           ),
-          'monitoring/show/services',
+          'monitoring/list/services',
           array(
             'host'               => $host->host_name,
             'service_problem'    => 1,
@@ -81,15 +76,15 @@ if (count($hosts) === 0) {
               $this->translatePlural(
                 'List %s unhandled service problem on host %s',
                 'List %s unhandled service problems on host %s',
-                $host->host_unhandled_services
+                $summary[$host->host_name]
               ),
-              $host->host_unhandled_services,
+              $summary[$host->host_name],
               $host->host_name
             )
           )
         ) ?>)</span>
         <?php endif ?>
-        <p class="pluginoutput"><?= $this->escape($this->ellipsis($host->host_output, 10000)) ?></p>
+        <p class="pluginoutput"><?= $this->pluginOutput($this->ellipsis($host->host_output, 10000), true) ?></p>
       </td>
       <?php foreach($this->addColumns as $col): ?>
       <td><?= $this->escape($host->$col) ?></td>
@@ -98,4 +93,17 @@ if (count($hosts) === 0) {
   <?php endforeach ?>
   </tbody>
 </table>
+<?php if (! $hosts->hasResult()): ?>
+  <?= $this->translate('No hosts found matching the filter'); ?>
+<?php elseif ($hosts->hasMore()): ?>
+  <?= $this->qlink(
+    $this->translate('Show More'),
+    $this->url()->without(array('view', 'limit')),
+    null,
+    array(
+      'data-base-target'    => '_next',
+      'class'               => 'pull-right show-more'
+    )
+  ); ?>
+<?php endif ?>
 </div>

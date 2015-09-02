@@ -4,44 +4,32 @@
 namespace Icinga\Module\Monitoring\DataView;
 
 /**
- * View for hostgroups
+ * Host group data view
  */
 class Hostgroup extends DataView
 {
     /**
-     * Retrieve columns provided by this view
-     *
-     * @return array
+     * {@inheritdoc}
      */
     public function getColumns()
     {
         return array(
-            'hostgroup_name',
+            'instance_name',
             'hostgroup_alias',
-            'hostgroup_id',
-            'host_name'
+            'hostgroup_name'
         );
     }
 
     /**
-     * Retrieve default sorting rules for particular columns. These involve sort order and potential additional to sort
-     *
-     * @return array
+     * {@inheritdoc}
      */
-    public function getSortRules()
+    public function getStaticFilterColumns()
     {
         return array(
-            'hostgroup_name' => array(
-                'order' => self::SORT_ASC
-            ),
-            'hostgroup_alias' => array(
-                'order' => self::SORT_ASC
-            )
+            'host', 'host_alias', 'host_display_name', 'host_name',
+            'hostgroup',
+            'service', 'service_description', 'service_display_name',
+            'servicegroup', 'servicegroup_alias', 'servicegroup_name'
         );
-    }
-
-    public function getFilterColumns()
-    {
-        return array('hostgroup', 'host');
     }
 }

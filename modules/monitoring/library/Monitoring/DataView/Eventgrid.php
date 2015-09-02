@@ -6,16 +6,12 @@ namespace Icinga\Module\Monitoring\DataView;
 class Eventgrid extends DataView
 {
     /**
-     * Retrieve columns provided by this view
-     *
-     * @return array
+     * {@inheritdoc}
      */
     public function getColumns()
     {
         return array(
             'day',
-            'cnt_events',
-            'objecttype_id',
             'cnt_up',
             'cnt_down_hard',
             'cnt_down',
@@ -29,13 +25,16 @@ class Eventgrid extends DataView
             'cnt_warning_hard',
             'cnt_ok',
             'host_name',
+            'host_display_name',
             'service_description',
-            'timestamp',
-            'servicegroup_name',
-            'hostgroup_name'
+            'service_display_name',
+            'timestamp'
         );
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getSortRules()
     {
         return array(
@@ -45,8 +44,17 @@ class Eventgrid extends DataView
         );
     }
 
-    public function getFilterColumns()
+    /**
+     * {@inheritdoc}
+     */
+    public function getStaticFilterColumns()
     {
-        return array('host', 'service', 'hostgroup', 'servicegroup');
+        return array(
+            'instance_name',
+            'host', 'host_alias',
+            'hostgroup', 'hostgroup_alias', 'hostgroup_name',
+            'service', 'service_host_name',
+            'servicegroup', 'servicegroup_alias', 'servicegroup_name'
+        );
     }
 }

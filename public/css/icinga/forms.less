@@ -25,7 +25,7 @@ label {
   font-weight: bold;
 }
 
-input, select {
+input, select, textarea {
   box-sizing: border-box;
   -moz-box-sizing: border-box;
   -webkit-box-sizing: border-box;
@@ -44,10 +44,19 @@ input[type=submit] {
   font-weight: bold;
   text-align: center;
   color: #fff;
-  border: 2px solid #ddd;
+  border: 1px solid;
   border-color: @colorPetrol;
   background: @colorPetrol;
   outline: 0;
+
+  &[disabled] {
+    background-color: #666;
+    border-color: black;
+  }
+
+  &:hover[disabled], &:active[disabled], &:focus[disabled] {
+    background-color: #666;
+  }
 }
 
 input[type=submit]:hover, a.button:hover, input[type=submit]:focus {
@@ -87,24 +96,82 @@ button::-moz-focus-inner {
   outline: 0;
 }
 
-button {
-  cursor: pointer;
-}
-
 select::-moz-focus-inner {
   border: 0;
   outline: 0;
-}
-
-input:disabled, select:disabled {
-    background-color: #fff;
-    border-color: white;
 }
 
 form.inline {
   margin: 0;
   padding: 0;
   display: inline;
+}
+
+div.spinner {
+  display: inline-block;
+  margin-top: 0.2em;
+  margin-left: 0.25em;
+
+  i {
+    visibility: hidden;
+
+    &.active {
+      visibility: visible;
+
+      &:before {
+        .animate(spin 2s infinite linear);
+      }
+    }
+
+    &:before {
+      margin: 0; // Disables wobbling
+    }
+  }
+}
+
+button.animated.active {
+  &.move-up i:before {
+    .animate(move-vertical 500ms infinite linear);
+  }
+
+  &.move-down i:before {
+    .animate(move-vertical 500ms infinite linear reverse);
+  }
+}
+
+button, .button-like {
+  font-size: 0.9em;
+  font-weight: bold;
+  outline: 0;
+  color: #fff;
+  padding: 0.2em;
+  border: 1px solid;
+  border-color: @colorPetrol;
+  background: @colorPetrol;
+
+  &[disabled] {
+    background-color: #666;
+    border-color: black;
+  }
+
+  &:hover, &:focus, &:active {
+    background-color: #333;
+    border-color: #333;
+    cursor: pointer;
+
+    &[disabled] {
+      background-color: #666;
+    }
+  }
+}
+
+.button-like {
+  display: inline-block;
+}
+
+a.button-like {
+  cursor: default;
+  text-decoration: none;
 }
 
 form.link-like input[type="submit"], form.link-like button[type="submit"], input.link-like, button.link-like {
@@ -115,13 +182,29 @@ form.link-like input[type="submit"], form.link-like button[type="submit"], input
   padding: 0;
   font-size: 1em;
   cursor: pointer;
+
+  &.icon-only {
+    color: inherit;
+    font-size: 1.5em;
+
+    &:hover, &:focus, &:active {
+      color: #666;
+    }
+  }
 }
 
 form.link-like input[type="submit"]:hover,
 form.link-like input[type="submit"]:focus,
+form.link-like input[type="submit"]:active,
 form.link-like button[type="submit"]:hover,
 form.link-like button[type="submit"]:focus,
-input.link-like:hover, button.link-like:focus {
+form.link-like button[type="submit"]:active,
+input.link-like:hover,
+input.link-like:focus,
+input.link-like:active,
+button.link-like:hover,
+button.link-like:focus,
+button.link-like:active {
   text-decoration: underline;
   background: none;
   color: @colorLinkDefault;
@@ -144,7 +227,6 @@ form div.element ul.errors {
   li {
     color: @colorCritical;
     font-weight: bold;
-    line-height: 1.5em;
   }
 }
 
@@ -165,45 +247,60 @@ form ul.form-errors {
   li {
     color: white;
     font-weight: bold;
-    line-height: 1.5em;
   }
 }
 
 form ul.form-notifications {
   .non-list-like-list;
   margin-bottom: 1em;
-  padding: 0em;
+  padding: 0;
 
-  li.info {
-    background: @colorFormNotificationInfo;
-  }
+  ul {
+    .non-list-like-list;
 
-  li.warning {
-    background: @colorFormNotificationWarning;
-  }
+    &.info {
+      background-color: @colorFormNotificationInfo;
+    }
 
-  li.error {
-    background: @colorFormNotificationError;
+    &.warning {
+      background-color: @colorFormNotificationWarning;
+    }
+
+    &.error {
+      background-color: @colorFormNotificationError;
+    }
   }
 
   li {
     color: white;
     font-weight: bold;
-    line-height: 1.5em;
-    padding: 0.5em;
-    margin-bottom: 0.5em;
   }
 }
 
 form div.element {
-  margin: 0.5em 0;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 form label {
   display: inline-block;
+  vertical-align: top;
+  margin-top: 0.25em;
   margin-right: 1em;
   font-size: 0.9em;
   width: 10em;
+}
+
+form div.element i.help:before {
+  margin-top: 0.25em;
+}
+
+label ~ * {
+  vertical-align: top;
+}
+
+form dt {
+  vertical-align: top;
 }
 
 select, input[type=text], textarea {
@@ -213,6 +310,13 @@ select, input[type=text], textarea {
 
 textarea {
   height: 4em;
+}
+
+textarea.resource {
+  &.ssh-identity {
+    width: 50%;
+    height: 25em;
+  }
 }
 
 form .description {
@@ -229,16 +333,31 @@ select.grant-permissions {
   width: auto;
 }
 
-label ~ input, label ~ select {
-  margin-left: 1.6em;
+label ~ input, label ~ select, label ~ textarea {
+  margin-left: 1.3em;
 }
 
-label + i ~ input, label + i ~ select {
+label + i ~ input, label + i ~ select, label + i ~ textarea {
   margin-left: 0;
 }
 
 button.noscript-apply {
   margin-left: 0.5em;
+}
+
+i.autosubmit-warning {
+  display: inline-block;
+  margin-left: 0.2em;
+  margin-top: 0.25em;
+
+  &:before {
+    margin: 0; // Disables wobbling
+  }
+
+  &.spinning:before {
+    content: '\e874'; // icon-spin6
+    .animate(spin 2s infinite linear);
+  }
 }
 
 html.no-js i.autosubmit-warning {
@@ -259,8 +378,32 @@ form ul.descriptions {
   }
 }
 
-form > div.header {
-  h1, h2, h3, h4, h5, h6 {
-    display: inline-block;
+form ul.hints {
+  .non-list-like-list;
+  padding: 0.5em 0.5em 0 0.5em;
+
+  li {
+    font-size: 0.8em;
+    padding-bottom: 0.5em;
+  }
+}
+
+.control-group {
+  & > * {
+    float: left;
+    margin-right: 0.5em;
+  }
+
+  div.element {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  &:after {
+    content: ".";
+    visibility: hidden;
+    display: block;
+    height: 0;
+    clear: both;
   }
 }

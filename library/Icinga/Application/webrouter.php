@@ -3,11 +3,9 @@
 
 namespace Icinga\Application;
 
-use Icinga\Application\EmbeddedWeb;
-use Icinga\Application\Web;
-use Icinga\Web\StyleSheet;
-use Icinga\Web\JavaScript;
 use Icinga\Chart\Inline\PieChart;
+use Icinga\Web\JavaScript;
+use Icinga\Web\StyleSheet;
 
 error_reporting(E_ALL | E_STRICT);
 
@@ -31,7 +29,7 @@ $baseDir = $_SERVER['DOCUMENT_ROOT'];
 $baseDir = dirname($_SERVER['SCRIPT_FILENAME']);
 
 // Fix aliases
-$remove = dirname($_SERVER['PHP_SELF']);
+$remove = str_replace('\\', '/', dirname($_SERVER['PHP_SELF']));
 if (substr($ruri, 0, strlen($remove)) !== $remove) {
     return false;
 }

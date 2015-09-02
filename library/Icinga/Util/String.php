@@ -4,7 +4,7 @@
 namespace Icinga\Util;
 
 /**
- * Common string helper
+ * Common string functions
  */
 class String
 {
@@ -55,6 +55,26 @@ class String
     }
 
     /**
+     * Add ellipsis in the center of a string when a string is longer than max length
+     *
+     * @param   string  $string
+     * @param   int     $maxLength
+     * @param   string  $ellipsis
+     *
+     * @return  string
+     */
+    public static function ellipsisCenter($string, $maxLength, $ellipsis = '...')
+    {
+        $start = ceil($maxLength / 2.0);
+        $end = floor($maxLength / 2.0);
+        if (strlen($string) > $maxLength) {
+            return substr($string, 0, $start - strlen($ellipsis)) . $ellipsis . substr($string, - $end);
+        }
+
+        return $string;
+    }
+
+    /**
      * Find and return all similar strings in $possibilites matching $string with the given minimum $similarity
      *
      * @param   string  $string
@@ -83,8 +103,8 @@ class String
     /**
      * Check if a string ends with a different string
      *
-     * @param $haystack The string to search for matches
-     * @param $needle   The string to match at the start of the haystack
+     * @param $haystack string The string to search for matches
+     * @param $needle   string The string to match at the start of the haystack
      *
      * @return bool     Whether or not needle is at the beginning of haystack
      */

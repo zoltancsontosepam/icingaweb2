@@ -4,10 +4,11 @@
 namespace Icinga\Module\Monitoring\Command\Transport;
 
 use Icinga\Application\Logger;
+use Icinga\Data\ResourceFactory;
 use Icinga\Exception\ConfigurationError;
-use Icinga\Module\Monitoring\Command\Exception\TransportException;
 use Icinga\Module\Monitoring\Command\IcingaCommand;
 use Icinga\Module\Monitoring\Command\Renderer\IcingaCommandFileCommandRenderer;
+use Icinga\Module\Monitoring\Exception\CommandTransportException;
 
 /**
  * A remote Icinga command file
@@ -20,6 +21,13 @@ class RemoteCommandFile implements CommandTransportInterface
      * Transport identifier
      */
     const TRANSPORT = 'remote';
+
+    /**
+     * The name of the Icinga instance this transport will transfer commands to
+     *
+     * @var string
+     */
+    protected $instanceName;
 
     /**
      * Remote host
@@ -45,6 +53,13 @@ class RemoteCommandFile implements CommandTransportInterface
     protected $user;
 
     /**
+     * Path to the private key file for the key-based authentication
+     *
+     * @var string
+     */
+    protected $privateKey;
+
+    /**
      * Path to the Icinga command file on the remote host
      *
      * @var string
@@ -64,6 +79,29 @@ class RemoteCommandFile implements CommandTransportInterface
     public function __construct()
     {
         $this->renderer = new IcingaCommandFileCommandRenderer();
+    }
+
+    /**
+     * Set the name of the Icinga instance this transport will transfer commands to
+     *
+     * @param   string  $name
+     *
+     * @return  $this
+     */
+    public function setInstance($name)
+    {
+        $this->instanceName = $name;
+        return $this;
+    }
+
+    /**
+     * Return the name of the Icinga instance this transport will transfer commands to
+     *
+     * @return  string
+     */
+    public function getInstance()
+    {
+        return $this->instanceName;
     }
 
     /**
@@ -138,6 +176,55 @@ class RemoteCommandFile implements CommandTransportInterface
     }
 
     /**
+     * Set the path to the private key file
+     *
+     * @param string $privateKey
+     *
+     * @return $this
+     */
+    public function setPrivateKey($privateKey)
+    {
+        $this->privateKey = (string) $privateKey;
+        return $this;
+    }
+
+    /**
+     * Get the path to the private key
+     *
+     * @return string
+     */
+    public function getPrivateKey()
+    {
+        return $this->privateKey;
+    }
+
+    /**
+     * Use a given resource to set the user and the key
+     *
+     * @param string
+     *
+     * @throws ConfigurationError
+     */
+    public function setResource($resource = null)
+    {
+        $config = ResourceFactory::getResourceConfig($resource);
+
+        if (! isset($config->user)) {
+            throw new ConfigurationError(
+                t("Can't send external Icinga Command. Remote user is missing")
+            );
+        }
+        if (! isset($config->private_key)) {
+            throw new ConfigurationError(
+                t("Can't send external Icinga Command. The private key for the remote user is missing")
+            );
+        }
+
+        $this->setUser($config->user);
+        $this->setPrivateKey($config->private_key);
+    }
+
+    /**
      * Set the path to the Icinga command file on the remote host
      *
      * @param   string $path
@@ -167,7 +254,7 @@ class RemoteCommandFile implements CommandTransportInterface
      * @param   int|null        $now
      *
      * @throws  ConfigurationError
-     * @throws  TransportException
+     * @throws  CommandTransportException
      */
     public function send(IcingaCommand $command, $now = null)
     {
@@ -192,6 +279,9 @@ class RemoteCommandFile implements CommandTransportInterface
         if (isset($this->user)) {
             $ssh .= sprintf(' -l %s', escapeshellarg($this->user));
         }
+        if (isset($this->privateKey)) {
+            $ssh .= sprintf(' -o StrictHostKeyChecking=no -i %s', escapeshellarg($this->privateKey));
+        }
         $ssh .= sprintf(
             ' %s "echo %s > %s" 2>&1', // Redirect stderr to stdout
             escapeshellarg($this->host),
@@ -200,9 +290,8 @@ class RemoteCommandFile implements CommandTransportInterface
         );
         exec($ssh, $output, $status);
         if ($status !== 0) {
-            throw new TransportException(
-                'Can\'t send external Icinga command "%s": %s',
-                $ssh,
+            throw new CommandTransportException(
+                'Can\'t send external Icinga command: %s',
                 implode(' ', $output)
             );
         }

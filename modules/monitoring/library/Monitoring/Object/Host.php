@@ -7,7 +7,7 @@ use InvalidArgumentException;
 use Icinga\Module\Monitoring\Backend\MonitoringBackend;
 
 /**
- * A Icinga host
+ * An Icinga host
  */
 class Host extends MonitoredObject
 {
@@ -89,6 +89,7 @@ class Host extends MonitoredObject
     protected function getDataView()
     {
         $columns = array(
+            'instance_name',
             'host_icon_image',
             'host_icon_image_alt',
             'host_acknowledged',
@@ -137,7 +138,7 @@ class Host extends MonitoredObject
         if ($this->backend->getType() === 'livestatus') {
             $columns[] = 'host_contacts';
         }
-        return $this->backend->select()->from('hostStatus', $columns)
+        return $this->backend->select()->from('hoststatus', $columns)
             ->where('host_name', $this->host);
     }
 
@@ -149,10 +150,10 @@ class Host extends MonitoredObject
     public function fetchServices()
     {
         $services = array();
-        foreach ($this->backend->select()->from('serviceStatus', array('service_description'))
+        foreach ($this->backend->select()->from('servicestatus', array('service_description'))
                 ->where('host_name', $this->host)
-                ->getQuery()
-                ->fetchAll() as $service) {
+                ->applyFilter($this->getFilter())
+                ->getQuery() as $service) {
             $services[] = new Service($this->backend, $this->host, $service->service_description);
         }
         $this->services = $services;
@@ -192,7 +193,9 @@ class Host extends MonitoredObject
 
     public function getNotesUrls()
     {
-        return MonitoredObject::parseAttributeUrls($this->host_notes_url);
+        return $this->resolveAllStrings(
+            MonitoredObject::parseAttributeUrls($this->host_notes_url)
+        );
     }
 
     public function getNotes()

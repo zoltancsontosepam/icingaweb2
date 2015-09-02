@@ -4,9 +4,7 @@
   <div class="dontprint">
      <?= $this->render('list/components/selectioninfo.phtml'); ?>
   </div>
-  <div class="tinystatesummary">
-     <?= count($comments) ?> <?= $this->translate('Comments') ?>:
-  </div>
+  <h1><?= count($comments) ?> <?= $this->translate('Comments') ?></h1>
   <?= $this->sortBox; ?>
   <?= $this->limiter; ?>
   <?= $this->paginator; ?>
@@ -14,53 +12,43 @@
 </div>
 <?php endif ?>
 <div class="content">
-<?php
-
-if (count($comments) === 0) {
-    echo $this->translate('No comments found matching the filter') . '</div>';
-    return;
-}
-?>
   <table data-base-target="_next"
          class="action comments multiselect"
          data-icinga-multiselect-url="/icingaweb2/monitoring/comments/show"
          data-icinga-multiselect-data="comment_id">
     <tbody>
-    <?php foreach ($comments as $comment):
-        $this->comment = $comment; ?>
-
+    <?php foreach ($comments->peekAhead($this->compact) as $comment): ?>
       <tr class="state invalid">
         <td class="state" style="width: 12em;">
-          <?= $this->render('partials/comment/comment-description.phtml'); ?>
+          <?= $this->partial('partials/comment/comment-description.phtml', array('comment' => $comment)); ?>
         </td>
         <td>
         <?php if ($comment->objecttype === 'service'): ?>
-          <?= $this->icon('service', $this->translate('Service')); ?>
-
-          <?= $this->qlink(
-            sprintf(
-                $this->translate('%s on %s', 'Service running on host'),
-                $comment->service_display_name,
-                $comment->host_display_name
-            ),
+          <?= $this->icon('service', $this->translate('Service')); ?> <?= $this->qlink(
+            $this->escape($comment->host_display_name) . ': ' . $this->escape($comment->service_display_name),
             'monitoring/comment/show',
             array('comment_id' => $comment->id),
-            array('title' => sprintf(
-                $this->translate('Show detailed information for comment on %s for %s'),
+            array(
+              'title' => sprintf(
+                $this->translate('Show detailed information for this comment about service %s on host %s'),
                 $comment->service_display_name,
                 $comment->host_display_name
-          ))) ?>
+              ),
+              'class' => 'rowaction'
+            )
+          ); ?>
         <?php else: ?>
-          <?= $this->icon('host', $this->translate('Host')); ?>
-
-          <?= $this->qlink(
-            $comment->host_display_name,
+          <?= $this->icon('host', $this->translate('Host')); ?> <?= $this->qlink(
+            $this->escape($comment->host_display_name),
             'monitoring/comment/show',
             array('comment_id' => $comment->id),
-            array('title' => sprintf(
-                $this->translate('Show detailed information for comment on %s'),
+            array(
+              'title' => sprintf(
+                $this->translate('Show detailed information for this comment about host %s'),
                 $comment->host_display_name
-          ))) ?>
+              )
+            )
+          ); ?>
         <?php endif ?>
           <br>
           <?= $this->icon('comment', $this->translate('Comment')); ?> <?= isset($comment->author)
@@ -79,7 +67,7 @@ if (count($comments) === 0) {
           ) : $this->translate('This comment does not expire.'); ?>
         </td>
         <?php if (isset($delCommentForm)): // Form is unset if the current user lacks the respective permission ?>
-        <td style="width: 2em" data-base-target="self">
+        <td style="width: 2em" data-base-target="_self">
           <?php
           $delCommentForm = clone $delCommentForm;
           $delCommentForm->populate(
@@ -96,4 +84,17 @@ if (count($comments) === 0) {
 <?php endforeach ?>
     </tbody>
   </table>
+<?php if (! $comments->hasResult()): ?>
+  <?= $this->translate('No comments found matching the filter'); ?>
+<?php elseif ($comments->hasMore()): ?>
+  <?= $this->qlink(
+    $this->translate('Show More'),
+    $this->url()->without(array('view', 'limit')),
+    null,
+    array(
+      'data-base-target'    => '_next',
+      'class'               => 'pull-right show-more'
+    )
+  ); ?>
+<?php endif ?>
 </div>

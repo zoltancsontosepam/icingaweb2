@@ -1,6 +1,8 @@
 <?php
 /* Icinga Web 2 | (c) 2013-2015 Icinga Development Team | GPLv2+ */
 
+namespace Icinga\Module\Monitoring\Controllers;
+
 use Icinga\Module\Monitoring\Forms\Command\Object\AcknowledgeProblemCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\AddCommentCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\ProcessCheckResultCommandForm;
@@ -11,11 +13,11 @@ use Icinga\Module\Monitoring\Object\Host;
 use Icinga\Module\Monitoring\Web\Controller\MonitoredObjectController;
 use Icinga\Web\Hook;
 
-class Monitoring_HostController extends MonitoredObjectController
+class HostController extends MonitoredObjectController
 {
+
     /**
-     * (non-PHPDoc)
-     * @see MonitoredObjectController::$commandRedirectUrl For the property documentation.
+     * {@inheritdoc}
      */
     protected $commandRedirectUrl = 'monitoring/host/show';
 
@@ -25,9 +27,7 @@ class Monitoring_HostController extends MonitoredObjectController
     public function init()
     {
         $host = new Host($this->backend, $this->params->getRequired('host'));
-
-        $this->applyRestriction('monitoring/hosts/filter', $host);
-
+        $this->applyRestriction('monitoring/filter/objects', $host);
         if ($host->fetch() === false) {
             $this->httpNotFound($this->translate('Host not found'));
         }
@@ -61,6 +61,51 @@ class Monitoring_HostController extends MonitoredObjectController
     {
         $this->view->actions = $this->getHostActions();
         parent::showAction();
+    }
+
+    /**
+     * List a host's services
+     */
+    public function servicesAction()
+    {
+        $this->setAutorefreshInterval(10);
+        $this->getTabs()->activate('services');
+        $query = $this->backend->select()->from('servicestatus', array(
+            'host_name',
+            'host_display_name',
+            'host_state',
+            'host_state_type',
+            'host_last_state_change',
+            'host_address',
+            'host_handled',
+            'service_description',
+            'service_display_name',
+            'service_state',
+            'service_in_downtime',
+            'service_acknowledged',
+            'service_handled',
+            'service_output',
+            'service_perfdata',
+            'service_attempt',
+            'service_last_state_change',
+            'service_icon_image',
+            'service_icon_image_alt',
+            'service_is_flapping',
+            'service_state_type',
+            'service_handled',
+            'service_severity',
+            'service_last_check',
+            'service_notifications_enabled',
+            'service_action_url',
+            'service_notes_url',
+            'service_active_checks_enabled',
+            'service_passive_checks_enabled',
+            'current_check_attempt' => 'service_current_check_attempt',
+            'max_check_attempts'    => 'service_max_check_attempts'
+        ));
+        $this->applyRestriction('monitoring/filter/objects', $query);
+        $this->view->services = $query->where('host_name', $this->object->getName());
+        $this->view->object = $this->object;
     }
 
     /**
@@ -119,6 +164,7 @@ class Monitoring_HostController extends MonitoredObjectController
         $this->assertPermission('monitoring/command/process-check-result');
 
         $form = new ProcessCheckResultCommandForm();
+        $form->setBackend($this->backend);
         $form->setTitle($this->translate('Submit Passive Host Check Result'));
         $this->handleCommandForm($form);
     }

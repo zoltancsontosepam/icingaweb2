@@ -25,7 +25,8 @@ class Monitoring_HostgroupController extends Controller
             'hosts_unreachable_unhandled',
             'hosts_up'
         ));
-        $this->filterQuery($query);
+        $this->setupFilterControl($query);
+        $this->handleFormatRequest($query);
         $this->view->hostgroups = $query;
 
         $this->setupLimitControl();

@@ -3,14 +3,17 @@
 
 namespace Icinga\Module\Monitoring\Backend\Ido\Query;
 
-use Icinga\Exception\IcingaException;
+use Zend_Db_Expr;
+use Icinga\Application\Icinga;
 use Icinga\Application\Logger;
 use Icinga\Data\Db\DbQuery;
-use Icinga\Exception\ProgrammingError;
-use Icinga\Application\Icinga;
-use Icinga\Web\Session;
 use Icinga\Data\Filter\Filter;
 use Icinga\Data\Filter\FilterExpression;
+use Icinga\Exception\IcingaException;
+use Icinga\Exception\NotImplementedError;
+use Icinga\Exception\ProgrammingError;
+use Icinga\Exception\QueryException;
+use Icinga\Web\Session;
 
 /**
  * Base class for Ido Queries
@@ -45,23 +48,30 @@ abstract class IdoQuery extends DbQuery
     /**
      * The prefix to use
      *
-     * @var String
+     * @var string
      */
     protected $prefix;
 
     /**
-     * The alias name for the index column
+     * An array to map aliases to table names
      *
-     * @var String
+     * @var array
      */
     protected $idxAliasColumn;
 
     /**
-     * The table containing the index column alias
+     * An array to map aliases to column names
      *
-     * @var String
+     * @var array
      */
     protected $idxAliasTable;
+
+    /**
+     * An array to map custom aliases to aliases
+     *
+     * @var array
+     */
+    protected $idxCustomAliases;
 
     /**
      * The column map containing all filterable columns
@@ -110,53 +120,235 @@ abstract class IdoQuery extends DbQuery
     protected $joinedVirtualTables = array();
 
     /**
-     * The primary field name for the object table
+     * The primary key column for the instances table
+     *
+     * @var string
+     */
+    protected $instance_id = 'instance_id';
+
+    /**
+     * The primary key column for the objects table
      *
      * @var string
      */
     protected $object_id       = 'object_id';
 
     /**
-     * The primary field name for the IDO host table
+     * The primary key column for the acknowledgements table
      *
      * @var string
      */
-    protected $host_id         = 'host_id';
+    protected $acknowledgement_id = 'acknowledgement_id';
 
     /**
-     * The primary field name for the IDO hostgroup table
+     * The primary key column for the commenthistory table
      *
      * @var string
      */
-    protected $hostgroup_id    = 'hostgroup_id';
+    protected $commenthistory_id = 'commenthistory_id';
 
     /**
-     * The primary field name for the IDO service table
+     * The primary key column for the contactnotifications table
      *
      * @var string
      */
-    protected $service_id      = 'service_id';
+    protected $contactnotification_id = 'contactnotification_id';
 
     /**
-     * The primary field name for the IDO serviegroup table
+     * The primary key column for the downtimehistory table
+     *
+     * @var string
+     */
+    protected $downtimehistory_id = 'downtimehistory_id';
+
+    /**
+     * The primary key column for the flappinghistory table
+     *
+     * @var string
+     */
+    protected $flappinghistory_id = 'flappinghistory_id';
+
+    /**
+     * The primary key column for the notifications table
+     *
+     * @var string
+     */
+    protected $notification_id = 'notification_id';
+
+    /**
+     * The primary key column for the statehistory table
+     *
+     * @var string
+     */
+    protected $statehistory_id = 'statehistory_id';
+
+    /**
+     * The primary key column for the comments table
+     *
+     * @var string
+     */
+    protected $comment_id = 'comment_id';
+
+    /**
+     * The primary key column for the customvariablestatus table
+     *
+     * @var string
+     */
+    protected $customvariablestatus_id = 'customvariablestatus_id';
+
+    /**
+     * The primary key column for the hoststatus table
+     *
+     * @var string
+     */
+    protected $hoststatus_id = 'hoststatus_id';
+
+    /**
+     * The primary key column for the programstatus table
+     *
+     * @var string
+     */
+    protected $programstatus_id = 'programstatus_id';
+
+    /**
+     * The primary key column for the runtimevariables table
+     *
+     * @var string
+     */
+    protected $runtimevariable_id = 'runtimevariable_id';
+
+    /**
+     * The primary key column for the scheduleddowntime table
+     *
+     * @var string
+     */
+    protected $scheduleddowntime_id = 'scheduleddowntime_id';
+
+    /**
+     * The primary key column for the servicestatus table
+     *
+     * @var string
+     */
+    protected $servicestatus_id = 'servicestatus_id';
+
+    /**
+     * The primary key column for the contactstatus table
+     *
+     * @var string
+     */
+    protected $contactstatus_id = 'contactstatus_id';
+
+    /**
+     * The primary key column for the commands table
+     *
+     * @var string
+     */
+    protected $command_id = 'command_id';
+
+    /**
+     * The primary key column for the contactgroup_members table
+     *
+     * @var string
+     */
+    protected $contactgroup_member_id = 'contactgroup_member_id';
+
+    /**
+     * The primary key column for the contactgroups table
+     *
+     * @var string
+     */
+    protected $contactgroup_id = 'contactgroup_id';
+
+    /**
+     * The primary key column for the contacts table
+     *
+     * @var string
+     */
+    protected $contact_id = 'contact_id';
+
+    /**
+     * The primary key column for the customvariables table
+     *
+     * @var string
+     */
+    protected $customvariable_id = 'customvariable_id';
+
+    /**
+     * The primary key column for the host_contactgroups table
+     *
+     * @var string
+     */
+    protected $host_contactgroup_id = 'host_contactgroup_id';
+
+    /**
+     * The primary key column for the host_contacts table
+     *
+     * @var string
+     */
+    protected $host_contact_id = 'host_contact_id';
+
+    /**
+     * The primary key column for the hostgroup_members table
+     *
+     * @var string
+     */
+    protected $hostgroup_member_id = 'hostgroup_member_id';
+
+    /**
+     * The primary key column for the hostgroups table
+     *
+     * @var string
+     */
+    protected $hostgroup_id = 'hostgroup_id';
+
+    /**
+     * The primary key column for the hosts table
+     *
+     * @var string
+     */
+    protected $host_id = 'host_id';
+
+    /**
+     * The primary key column for the service_contactgroup table
+     *
+     * @var string
+     */
+    protected $service_contactgroup_id = 'service_contactgroup_id';
+
+    /**
+     * The primary key column for the service_contact table
+     *
+     * @var string
+     */
+    protected $service_contact_id = 'service_contact_id';
+
+    /**
+     * The primary key column for the servicegroup_members table
+     *
+     * @var string
+     */
+    protected $servicegroup_member_id = 'servicegroup_member_id';
+
+    /**
+     * The primary key column for the servicegroups table
      *
      * @var string
      */
     protected $servicegroup_id = 'servicegroup_id';
 
     /**
-     * The primary field name for the IDO contact table
+     * The primary key column for the services table
      *
      * @var string
      */
-    protected $contact_id      = 'contact_id';
+    protected $service_id = 'service_id';
 
     /**
-     * The primary field name for the IDO contactgroup table
+     * The primary key column for the timeperiods table
      *
      * @var string
      */
-    protected $contactgroup_id = 'contactgroup_id';
+    protected $timeperiod_id = 'timeperiod_id';
 
     /**
      * An array containing Column names that cause an aggregation of the query
@@ -266,16 +458,26 @@ abstract class IdoQuery extends DbQuery
     protected function requireFilterColumns(Filter $filter)
     {
         if ($filter instanceof FilterExpression) {
-            $col = $filter->getColumn();
-            $this->requireColumn($col);
-
-            if ($this->isCustomvar($col)) {
-                $col = $this->getCustomvarColumnName($col);
-            } else {
-                $col = $this->aliasToColumnName($col);
+            if ($filter->getExpression() === '*') {
+                return; // Wildcard only filters are ignored so stop early here to avoid joining a table for nothing
             }
+            $alias = $filter->getColumn();
+            $this->requireColumn($alias);
+            if ($this->isCustomvar($alias)) {
+                $column = $this->getCustomvarColumnName($alias);
+            } else {
+                $column = $this->aliasToColumnName($alias);
+            }
+            if (isset($this->columnsWithoutCollation[$alias])) {
+                $expression = $filter->getExpression();
+                if (is_array($expression)) {
+                    $filter->setExpression(array_map('strtolower', $expression));
+                } else {
+                    $filter->setExpression(strtolower($expression));
 
-            $filter->setColumn($col);
+                }
+            }
+            $filter->setColumn($column);
         } else {
             foreach ($filter->filters() as $filter) {
                 $this->requireFilterColumns($filter);
@@ -283,50 +485,21 @@ abstract class IdoQuery extends DbQuery
         }
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function addFilter(Filter $filter)
     {
+        $filter = clone $filter;
         $this->requireFilterColumns($filter);
-        parent::addFilter($filter);
-    }
-
-    /**
-     * Recurse the given filter and ensure that any string conversion is case-insensitive
-     *
-     * @param Filter $filter
-     */
-    protected function lowerColumnsWithoutCollation(Filter $filter)
-    {
-        if ($filter instanceof FilterExpression) {
-            if (
-                in_array($filter->getColumn(), $this->columnsWithoutCollation)
-                && strpos($filter->getColumn(), 'LOWER') !== 0
-            ) {
-                $filter->setColumn('LOWER(' . $filter->getColumn() . ')');
-                $expression = $filter->getExpression();
-                if (is_array($expression)) {
-                    $filter->setExpression(array_map('strtolower', $expression));
-                } else {
-                    $filter->setExpression(strtolower($expression));
-                }
-            }
-        } else {
-            foreach ($filter->filters() as $chainedFilter) {
-                $this->lowerColumnsWithoutCollation($chainedFilter);
-            }
-        }
-    }
-
-    protected function applyFilterSql($select)
-    {
-        if (! empty($this->columnsWithoutCollation)) {
-            $this->lowerColumnsWithoutCollation($this->filter);
-        }
-
-        parent::applyFilterSql($select);
+        return parent::addFilter($filter);
     }
 
     public function where($condition, $value = null)
     {
+        if ($value === '*') {
+            return $this; // Wildcard only filters are ignored so stop early here to avoid joining a table for nothing
+        }
         $this->requireColumn($condition);
         $col = $this->getMappedField($condition);
         if ($col === null) {
@@ -354,6 +527,30 @@ abstract class IdoQuery extends DbQuery
     }
 
     /**
+     * Return whether the given alias or column name provides case insensitive value comparison
+     *
+     * @param   string  $aliasOrColumn
+     *
+     * @return  bool
+     */
+    public function isCaseInsensitive($aliasOrColumn)
+    {
+        if ($this->isCustomVar($aliasOrColumn)) {
+            return false;
+        }
+
+        $column = $this->getMappedField($aliasOrColumn) ?: $aliasOrColumn;
+        if (! $column) {
+            return false;
+        }
+
+        if (! empty($this->columnsWithoutCollation)) {
+            return in_array($column, $this->columnsWithoutCollation) || strpos($column, 'LOWER') !== 0;
+        }
+        return preg_match('/ COLLATE .+$/', $column) === 1;
+    }
+
+    /**
      * Apply oracle specific query initialization
      */
     private function initializeForOracle()
@@ -374,27 +571,27 @@ abstract class IdoQuery extends DbQuery
     }
 
     /**
-     * Apply postgresql specific query initialization
+     * Apply PostgreSQL specific query initialization
      */
     private function initializeForPostgres()
     {
         $this->customVarsJoinTemplate =
             '%1$s = %2$s.object_id AND LOWER(%2$s.varname) = %3$s';
-        foreach ($this->columnMap as $table => & $columns) {
-            foreach ($columns as $key => & $value) {
-                $value = preg_replace('/ COLLATE .+$/', '', $value, -1, $count);
-                if ($count > 0) {
-                    $this->columnsWithoutCollation[] = $this->getMappedField($key);
+        foreach ($this->columnMap as $table => &$columns) {
+            foreach ($columns as $alias => &$column) {
+                if (false !== $pos = strpos($column, ' COLLATE')) {
+                    $column = 'LOWER(' . substr($column, 0, $pos) . ')';
+                    $this->columnsWithoutCollation[$alias] = true;
                 }
-                $value = preg_replace(
+                $column = preg_replace(
                     '/inet_aton\(([[:word:].]+)\)/i',
                     '(CASE WHEN $1 ~ \'(?:[0-9]{1,3}\\\\.){3}[0-9]{1,3}\' THEN $1::inet - \'0.0.0.0\' ELSE NULL END)',
-                    $value
+                    $column
                 );
-                $value = preg_replace(
+                $column = preg_replace(
                     '/UNIX_TIMESTAMP(\((?>[^()]|(?-1))*\))/i',
                     'CASE WHEN ($1 < \'1970-01-03 00:00:00+00\'::timestamp with time zone) THEN 0 ELSE UNIX_TIMESTAMP($1) END',
-                    $value
+                    $column
                 );
             }
         }
@@ -415,19 +612,9 @@ abstract class IdoQuery extends DbQuery
         } elseif ($dbType === 'pgsql') {
             $this->initializeForPostgres();
         }
-        $this->dbSelect();
+        $this->joinBaseTables();
         $this->select->columns($this->columns);
-        //$this->joinBaseTables();
         $this->prepareAliasIndexes();
-    }
-
-    protected function dbSelect()
-    {
-        if ($this->select === null) {
-            $this->select = $this->db->select();
-            $this->joinBaseTables();
-        }
-        return clone $this->select;
     }
 
     /**
@@ -471,6 +658,11 @@ abstract class IdoQuery extends DbQuery
         $resolvedColumns = array();
 
         foreach ($columns as $alias => $col) {
+            if ($col instanceof Zend_Db_Expr) {
+                // Support selecting NULL as column for example
+                $resolvedColumns[$alias] = $col;
+                continue;
+            }
             $this->requireColumn($col);
             if ($this->isCustomvar($col)) {
                 $name = $this->getCustomvarColumnName($col);
@@ -479,6 +671,8 @@ abstract class IdoQuery extends DbQuery
             }
             if (is_int($alias)) {
                 $alias = $col;
+            } else {
+                $this->idxCustomAliases[$alias] = $col;
             }
 
             $resolvedColumns[$alias] = preg_replace('|\n|', ' ', $name);
@@ -599,6 +793,16 @@ abstract class IdoQuery extends DbQuery
     }
 
     /**
+     * Return whether this query allows to join custom variables
+     *
+     * @return  bool
+     */
+    public function allowsCustomVars()
+    {
+        return $this->allowCustomVars;
+    }
+
+    /**
      * Return true if the given alias denotes a custom variable
      *
      * @param  String $alias    The alias to test for being a customvariable
@@ -630,12 +834,14 @@ abstract class IdoQuery extends DbQuery
 
         $this->customVars[$customvar] = $alias;
 
-        // TODO: extend if we allow queries with only hosts / only services
-        //       ($leftcol s.host_object_id vs h.host_object_id
         if ($this->hasJoinedVirtualTable('services')) {
             $leftcol = 's.' . $type . '_object_id';
+        } elseif ($type === 'service') {
+            $this->requireVirtualTable('services');
+            $leftcol = 's.service_object_id';
         } else {
-            $leftcol = 'h.' . $type . '_object_id';
+            $this->requireVirtualTable('hosts');
+            $leftcol = 'h.host_object_id';
         }
 
         $joinOn = sprintf(
@@ -657,7 +863,6 @@ abstract class IdoQuery extends DbQuery
     protected function customvarNameToTypeName($customvar)
     {
         $customvar = strtolower($customvar);
-        // TODO: Improve this:
         if (! preg_match('~^_(host|service)_([a-zA-Z0-9_]+)$~', $customvar, $m)) {
             throw new ProgrammingError(
                 'Got invalid custom var: "%s"',
@@ -672,9 +877,20 @@ abstract class IdoQuery extends DbQuery
         return array_key_exists($name, $this->joinedVirtualTables);
     }
 
+    /**
+     * Get the query column of a already joined custom variable
+     *
+     * @param   string $customvar
+     *
+     * @return  string
+     * @throws  QueryException If the custom variable has not been joined
+     */
     protected function getCustomvarColumnName($customvar)
     {
-        return $this->customVars[strtolower($customvar)] . '.varvalue';
+        if (! isset($this->customVars[($customvar = strtolower($customvar))])) {
+            throw new QueryException('Custom variable %s has not been joined', $customvar);
+        }
+        return $this->customVars[$customvar] . '.varvalue';
     }
 
     public function aliasToColumnName($alias)
@@ -682,6 +898,29 @@ abstract class IdoQuery extends DbQuery
         return $this->idxAliasColumn[$alias];
     }
 
+    /**
+     * Get the alias of a column expression as defined in the {@link $columnMap} property.
+     *
+     * @param   string $alias Potential custom alias
+     *
+     * @return  string
+     */
+    public function customAliasToAlias($alias)
+    {
+        if (isset($this->idxCustomAliases[$alias])) {
+            return $this->idxCustomAliases[$alias];
+        }
+        return $alias;
+    }
+
+    /**
+     * Create a sub query
+     *
+     * @param   string  $queryName
+     * @param   array   $columns
+     *
+     * @return  static
+     */
     protected function createSubQuery($queryName, $columns = array())
     {
         $class = '\\'
@@ -700,10 +939,53 @@ abstract class IdoQuery extends DbQuery
      */
     public function columns(array $columns)
     {
+        $this->idxCustomAliases = array();
         $this->columns = $this->resolveColumns($columns);
         // TODO: we need to refresh our select!
         // $this->select->columns($columns);
         return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function _getGroup()
+    {
+        throw new NotImplementedError('Does not work in its current state but will, probably, in the future');
+
+        // TODO: order by??
+        $group = parent::getGroup();
+        if (! empty($group) && $this->ds->getDbType() === 'pgsql') {
+            $group = is_array($group) ? $group : array($group);
+            foreach ($this->columns as $alias => $column) {
+                if ($column instanceof Zend_Db_Expr) {
+                    continue;
+                }
+
+                // TODO: What if $alias is neither a native nor a custom alias???
+                $table = $this->aliasToTableName(
+                    $this->hasAliasName($alias) ? $alias : $this->customAliasToAlias($alias)
+                );
+
+                // TODO: We cannot rely on the underlying select here, tables may be joined multiple times with
+                //       different aliases so the only way to get the correct alias here is to register such by ourself
+                //       for each virtual column (We may also inspect $column for the alias but this will probably lead
+                //       to false positives.. AND prevents custom implementations from providing their own "mapping")
+                if (($tableAlias = $this->getJoinedTableAlias($this->prefix . $table)) === null) {
+                    $tableAlias = $table;
+                }
+
+                // TODO: Same issue as with identifying table aliases; Our virtual tables are not named exactly how
+                //       they are in the IDO. We definitely need to register aliases explicitly (hint: DbRepository
+                //       is already providing such..)
+                $aliasedPk = $tableAlias . '.' . $this->getPrimaryKeyColumn($table);
+                if (! in_array($aliasedPk, $group)) {
+                    $group[] = $aliasedPk;
+                }
+            }
+        }
+
+        return $group;
     }
 
     // TODO: Move this away, see note related to $idoVersion var
@@ -730,5 +1012,91 @@ abstract class IdoQuery extends DbQuery
             }
         }
         return self::$idoVersion;
+    }
+
+    /**
+     * Return the name of the primary key column for the given table name
+     *
+     * @param   string  $table
+     *
+     * @return  string
+     *
+     * @throws ProgrammingError     In case $table is unknown
+     */
+    protected function getPrimaryKeyColumn($table)
+    {
+        // TODO: For god's sake, make this being a mapping
+        //       (instead of matching a ton of properties using a ridiculous long switch case)
+        switch ($table)
+        {
+            case 'instances':
+                return $this->instance_id;
+            case 'objects':
+                return $this->object_id;
+            case 'acknowledgements':
+                return $this->acknowledgement_id;
+            case 'commenthistory':
+                return $this->commenthistory_id;
+            case 'contactnotifiations':
+                return $this->contactnotification_id;
+            case 'downtimehistory':
+                return $this->downtimehistory_id;
+            case 'flappinghistory':
+                return $this->flappinghistory_id;
+            case 'notifications':
+                return $this->notification_id;
+            case 'statehistory':
+                return $this->statehistory_id;
+            case 'comments':
+                return $this->comment_id;
+            case 'customvariablestatus':
+                return $this->customvariablestatus_id;
+            case 'hoststatus':
+                return $this->hoststatus_id;
+            case 'programstatus':
+                return $this->programstatus_id;
+            case 'runtimevariables':
+                return $this->runtimevariable_id;
+            case 'scheduleddowntime':
+                return $this->scheduleddowntime_id;
+            case 'servicestatus':
+                return $this->servicestatus_id;
+            case 'contactstatus':
+                return $this->contactstatus_id;
+            case 'commands':
+                return $this->command_id;
+            case 'contactgroup_members':
+                return $this->contactgroup_member_id;
+            case 'contactgroups':
+                return $this->contactgroup_id;
+            case 'contacts':
+                return $this->contact_id;
+            case 'customvariables':
+                return $this->customvariable_id;
+            case 'host_contactgroups':
+                return $this->host_contactgroup_id;
+            case 'host_contacts':
+                return $this->host_contact_id;
+            case 'hostgroup_members':
+                return $this->hostgroup_member_id;
+            case 'hostgroups':
+                return $this->hostgroup_id;
+            case 'hosts':
+                return $this->host_id;
+            case 'service_contactgroups':
+                return $this->service_contactgroup_id;
+            case 'service_contacts':
+                return $this->service_contact_id;
+            case 'servicegroup_members':
+                return $this->servicegroup_member_id;
+            case 'servicegroups':
+                return $this->servicegroup_id;
+            case 'services':
+                return $this->service_id;
+            case 'timeperiods':
+                return $this->timeperiod_id;
+            default:
+                throw new ProgrammingError('Cannot provide a primary key column. Table "%s" is unknown', $table);
+        }
     }
 }

@@ -1,23 +1,25 @@
 <?php
 /* Icinga Web 2 | (c) 2013-2015 Icinga Development Team | GPLv2+ */
 
+namespace Icinga\Module\Monitoring\Controllers;
+
 use Icinga\Data\Filter\Filter;
 use Icinga\Data\Filter\FilterEqual;
 use Icinga\Module\Monitoring\Controller;
 use Icinga\Module\Monitoring\Forms\Command\Object\AcknowledgeProblemCommandForm;
+use Icinga\Module\Monitoring\Forms\Command\Object\AddCommentCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\CheckNowCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\ObjectsCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\ProcessCheckResultCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\RemoveAcknowledgementCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\ScheduleHostCheckCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\ScheduleHostDowntimeCommandForm;
-use Icinga\Module\Monitoring\Forms\Command\Object\AddCommentCommandForm;
 use Icinga\Module\Monitoring\Forms\Command\Object\SendCustomNotificationCommandForm;
 use Icinga\Module\Monitoring\Object\HostList;
 use Icinga\Web\Url;
 use Icinga\Web\Widget\Tabextension\DashboardAction;
 
-class Monitoring_HostsController extends Controller
+class HostsController extends Controller
 {
     /**
      * @var HostList
@@ -26,14 +28,10 @@ class Monitoring_HostsController extends Controller
 
     public function init()
     {
-        // Support switching from service-view using the host and service selection. The filter would error
-        // on any occurrence of a filter based on service.
-        $filterString = preg_replace('/(service=[^)&]*)/', '', (string)$this->params);
-
         $hostList = new HostList($this->backend);
-        $hostList->setFilter(Filter::fromQueryString((string) $this->params->without('view')));
+        $this->applyRestriction('monitoring/filter/objects', $hostList);
+        $hostList->addFilter(Filter::fromQueryString((string) $this->params));
         $this->hostList = $hostList;
-
         $this->getTabs()->add(
             'show',
             array(
@@ -46,8 +44,7 @@ class Monitoring_HostsController extends Controller
                 'icon'  => 'host'
             )
         )->extend(new DashboardAction())->activate('show');
-
-        $this->view->listAllLink = Url::fromRequest()->setPath('monitoring/list/hosts')->setQueryString($filterString);
+        $this->view->listAllLink = Url::fromRequest()->setPath('monitoring/list/hosts');
     }
 
     protected function handleCommandForm(ObjectsCommandForm $form)
@@ -56,14 +53,13 @@ class Monitoring_HostsController extends Controller
             'host_icon_image',
             'host_icon_image_alt',
             'host_name',
+            'host_address',
             'host_state',
             'host_problem',
             'host_handled',
             'host_acknowledged',
             'host_in_downtime',
-            'host_last_ack',
             'host_is_flapping',
-            'host_last_comment',
             'host_output',
             'host_notifications_enabled',
             'host_active_checks_enabled',
@@ -94,14 +90,13 @@ class Monitoring_HostsController extends Controller
             'host_icon_image',
             'host_icon_image_alt',
             'host_name',
+            'host_address',
             'host_state',
             'host_problem',
             'host_handled',
             'host_acknowledged',
             'host_in_downtime',
-            'host_last_ack',
             'host_is_flapping',
-            'host_last_comment',
             'host_output',
             'host_notifications_enabled',
             'host_active_checks_enabled',
@@ -120,7 +115,7 @@ class Monitoring_HostsController extends Controller
             $this->view->removeAckForm = $removeAckForm;
         }
 
-        $hostStates = (object)$this->hostList->getStateSummary();
+        $hostStates = $this->hostList->getStateSummary();
 
         $this->setAutorefreshInterval(15);
         $this->view->rescheduleAllLink = Url::fromRequest()->setPath('monitoring/hosts/reschedule-check');
@@ -131,14 +126,16 @@ class Monitoring_HostsController extends Controller
         $this->view->objects = $this->hostList;
         $this->view->unhandledObjects = $this->hostList->getUnhandledObjects();
         $this->view->problemObjects = $this->hostList->getProblemObjects();
-
         $this->view->acknowledgeUnhandledLink = Url::fromPath('monitoring/hosts/acknowledge-problem')
-            ->setQueryString($this->hostList->getUnhandledObjects()->objectsFilter());
+            ->setQueryString($this->hostList->getUnhandledObjects()->objectsFilter()->toQueryString());
         $this->view->downtimeUnhandledLink = Url::fromPath('monitoring/hosts/schedule-downtime')
-            ->setQueryString($this->hostList->getUnhandledObjects()->objectsFilter());
+            ->setQueryString($this->hostList->getUnhandledObjects()->objectsFilter()->toQueryString());
         $this->view->downtimeLink = Url::fromPath('monitoring/hosts/schedule-downtime')
-            ->setQueryString($this->hostList->getProblemObjects()->objectsFilter());
+            ->setQueryString($this->hostList->getProblemObjects()->objectsFilter()->toQueryString());
         $this->view->acknowledgedObjects = $this->hostList->getAcknowledgedObjects();
+        $this->view->acknowledgeLink = Url::fromPath('monitoring/hosts/acknowledge-problem')
+            ->setQueryString($this->hostList->getUnacknowledgedObjects()->objectsFilter()->toQueryString());
+        $this->view->unacknowledgedObjects = $this->hostList->getUnacknowledgedObjects();
         $this->view->objectsInDowntime = $this->hostList->getObjectsInDowntime();
         $this->view->inDowntimeLink = Url::fromPath('monitoring/list/hosts')
             ->setQueryString(
@@ -168,18 +165,6 @@ class Monitoring_HostsController extends Controller
 
         $form = new AddCommentCommandForm();
         $form->setTitle($this->translate('Add Host Comments'));
-        $this->handleCommandForm($form);
-    }
-
-    /**
-     * Delete a comment
-     */
-    public function deleteCommentAction()
-    {
-        $this->assertPermission('monitoring/command/comment/delete');
-
-        $form = new DeleteCommentCommandForm();
-        $form->setTitle($this->translate('Delete Host Comments'));
         $this->handleCommandForm($form);
     }
 
@@ -227,6 +212,7 @@ class Monitoring_HostsController extends Controller
         $this->assertPermission('monitoring/command/process-check-result');
 
         $form = new ProcessCheckResultCommandForm();
+        $form->setBackend($this->backend);
         $form->setTitle($this->translate('Submit Passive Host Check Results'));
         $this->handleCommandForm($form);
     }

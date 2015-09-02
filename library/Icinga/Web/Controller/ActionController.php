@@ -3,10 +3,9 @@
 
 namespace Icinga\Web\Controller;
 
-use Exception;
 use Icinga\Application\Benchmark;
 use Icinga\Application\Config;
-use Icinga\Authentication\Manager;
+use Icinga\Authentication\Auth;
 use Icinga\Exception\Http\HttpMethodNotAllowedException;
 use Icinga\Exception\IcingaException;
 use Icinga\Exception\ProgrammingError;
@@ -39,6 +38,13 @@ class ActionController extends Zend_Controller_Action
      */
     protected $requiresAuthentication = true;
 
+    /**
+     * The current module's name
+     *
+     * @var string
+     */
+    private $moduleName;
+
     private $autorefreshInterval;
 
     private $reloadCss = false;
@@ -50,9 +56,16 @@ class ActionController extends Zend_Controller_Action
     private $xhrLayout = 'inline';
 
     /**
+     * The inner layout (inside the body) to use
+     *
+     * @var string
+     */
+    protected $innerLayout = 'body';
+
+    /**
      * Authentication manager
      *
-     * @var Manager|null
+     * @var Auth|null
      */
     private $auth;
 
@@ -84,13 +97,21 @@ class ActionController extends Zend_Controller_Action
         $this->_helper = new ActionHelperBroker($this);
 
         $this->handlerBrowserWindows();
-        $this->view->translationDomain = 'icinga';
+        $moduleName = $this->getModuleName();
+        $this->view->translationDomain = $moduleName !== 'default' ? $moduleName : 'icinga';
         $this->_helper->layout()->isIframe = $request->getUrl()->shift('isIframe');
-        $this->_helper->layout()->moduleName = false;
+        $this->_helper->layout()->showFullscreen = $request->getUrl()->shift('showFullscreen');
+        $this->_helper->layout()->moduleName = $moduleName;
 
         $this->view->compact = $request->getParam('view') === 'compact';
+        if ($request->getUrl()->shift('showCompact')) {
+            $this->view->compact = true;
+        }
         if ($this->rerenderLayout = $request->getUrl()->shift('renderLayout')) {
             $this->xhrLayout = 'body';
+        }
+        if ($request->getUrl()->shift('_disableLayout')) {
+            $this->_helper->layout()->disableLayout();
         }
 
         if ($this->requiresLogin()) {
@@ -117,12 +138,12 @@ class ActionController extends Zend_Controller_Action
     /**
      * Get the authentication manager
      *
-     * @return Manager
+     * @return Auth
      */
     public function Auth()
     {
         if ($this->auth === null) {
-            $this->auth = Manager::getInstance();
+            $this->auth = Auth::getInstance();
         }
         return $this->auth;
     }
@@ -148,9 +169,23 @@ class ActionController extends Zend_Controller_Action
      */
     public function assertPermission($permission)
     {
-        if (! $this->Auth()->hasPermission($permission)) {
+        if ($this->requiresAuthentication && ! $this->Auth()->hasPermission($permission)) {
             throw new SecurityException('No permission for %s', $permission);
         }
+    }
+
+    /**
+     * Return the current module's name
+     *
+     * @return  string
+     */
+    public function getModuleName()
+    {
+        if ($this->moduleName === null) {
+            $this->moduleName = $this->getRequest()->getModuleName();
+        }
+
+        return $this->moduleName;
     }
 
     public function Config($file = null)
@@ -411,6 +446,7 @@ class ActionController extends Zend_Controller_Action
 
         $req = $this->getRequest();
         $layout = $this->_helper->layout();
+        $layout->innerLayout = $this->innerLayout;
 
         if ($user = $req->getUser()) {
             // Cast preference app.show_benchmark to bool because preferences loaded from a preferences storage are
@@ -448,14 +484,14 @@ class ActionController extends Zend_Controller_Action
         $notifications = Notification::getInstance();
         if ($notifications->hasMessages()) {
             $notificationList = array();
-            foreach ($notifications->getMessages() as $m) {
+            foreach ($notifications->popMessages() as $m) {
                 $notificationList[] = rawurlencode($m->type . ' ' . $m->message);
             }
-            $resp->setHeader('X-Icinga-Notification', implode('&', $notificationList));
+            $resp->setHeader('X-Icinga-Notification', implode('&', $notificationList), true);
         }
 
         if ($this->reloadCss) {
-            $resp->setHeader('X-Icinga-CssReload', 'now');
+            $resp->setHeader('X-Icinga-CssReload', 'now', true);
         }
 
         if ($this->view->title) {
@@ -465,18 +501,19 @@ class ActionController extends Zend_Controller_Action
             }
             $resp->setHeader(
                 'X-Icinga-Title',
-                rawurlencode($this->view->title . ' :: Icinga Web')
+                rawurlencode($this->view->title . ' :: Icinga Web'),
+                true
             );
         } else {
-            $resp->setHeader('X-Icinga-Title', rawurlencode('Icinga Web'));
+            $resp->setHeader('X-Icinga-Title', rawurlencode('Icinga Web'), true);
         }
 
         if ($this->rerenderLayout) {
-            $this->getResponse()->setHeader('X-Icinga-Container', 'layout');
+            $this->getResponse()->setHeader('X-Icinga-Container', 'layout', true);
         }
 
         if ($this->autorefreshInterval !== null) {
-            $resp->setHeader('X-Icinga-Refresh', $this->autorefreshInterval);
+            $resp->setHeader('X-Icinga-Refresh', $this->autorefreshInterval, true);
         }
     }
 
@@ -501,7 +538,7 @@ class ActionController extends Zend_Controller_Action
      */
     protected function renderBenchmark()
     {
-        $this->render();
+        $this->_helper->viewRenderer->postDispatch();
         Benchmark::measure('Response ready');
         return Benchmark::renderToHtml();
     }

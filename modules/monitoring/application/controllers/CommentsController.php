@@ -1,38 +1,45 @@
 <?php
 /* Icinga Web 2 | (c) 2013-2015 Icinga Development Team | GPLv2+ */
 
+namespace Icinga\Module\Monitoring\Controllers;
+
+use Icinga\Data\Filter\Filter;
 use Icinga\Module\Monitoring\Controller;
 use Icinga\Module\Monitoring\Forms\Command\Object\DeleteCommentsCommandForm;
 use Icinga\Web\Url;
-use Icinga\Data\Filter\Filter;
 
 /**
- * Display detailed information about a comment
+ * Display detailed information about comments
  */
-class Monitoring_CommentsController extends Controller
+class CommentsController extends Controller
 {
     /**
-     * The fetched comments
+     * The comments view
      *
-     * @var array
+     * @var \Icinga\Module\Monitoring\DataView\Comment
      */
     protected $comments;
 
     /**
-     * Fetch all comments matching the current filter and add tabs
+     * Filter from request
      *
-     * @throws Zend_Controller_Action_Exception
+     * @var Filter
+     */
+    protected $filter;
+
+    /**
+     * Fetch all comments matching the current filter and add tabs
      */
     public function init()
     {
         $this->filter = Filter::fromQueryString(str_replace(
             'comment_id',
             'comment_internal_id',
-            (string)$this->params
+            (string) $this->params
         ));
-        $this->comments = $this->backend->select()->from('comment', array(
+        $query = $this->backend->select()->from('comment', array(
             'id'         => 'comment_internal_id',
-            'objecttype' => 'comment_objecttype',
+            'objecttype' => 'object_type',
             'comment'    => 'comment_data',
             'author'     => 'comment_author_name',
             'timestamp'  => 'comment_timestamp',
@@ -43,20 +50,19 @@ class Monitoring_CommentsController extends Controller
             'service_description',
             'host_display_name',
             'service_display_name'
-        ))->addFilter($this->filter)->getQuery()->fetchAll();
-        
-        if (false === $this->comments) {
-            throw new Zend_Controller_Action_Exception($this->translate('Comment not found'));
-        }
-         
+        ))->addFilter($this->filter);
+        $this->applyRestriction('monitoring/filter/objects', $query);
+
+        $this->comments = $query;
+
         $this->getTabs()->add(
             'comments',
             array(
+                'icon'  => 'comment',
+                'label' => $this->translate('Comments') . sprintf(' (%d)', $query->count()),
                 'title' => $this->translate(
                     'Display detailed information about multiple comments.'
                 ),
-                'icon'  => 'comment',
-                'label' => $this->translate('Comments') . sprintf(' (%d)', count($this->comments)),
                 'url'   =>'monitoring/comments/show'
             )
         )->activate('comments');
@@ -69,9 +75,9 @@ class Monitoring_CommentsController extends Controller
     {
         $this->view->comments = $this->comments;
         $this->view->listAllLink = Url::fromPath('monitoring/list/comments')
-                ->setQueryString($this->filter->toQueryString());
+            ->setQueryString($this->filter->toQueryString());
         $this->view->removeAllLink = Url::fromPath('monitoring/comments/delete-all')
-                ->setParams($this->params);
+            ->setParams($this->params);
     }
 
     /**
@@ -87,14 +93,14 @@ class Monitoring_CommentsController extends Controller
         $delCommentForm->setTitle($this->view->translate('Remove all Comments'));
         $delCommentForm->addDescription(sprintf(
             $this->translate('Confirm removal of %d comments.'),
-            count($this->comments)
+            $this->comments->count()
         ));
-        $delCommentForm->setComments($this->comments)
+        $delCommentForm->setComments($this->comments->fetchAll())
             ->setRedirectUrl($listCommentsLink)
             ->handleRequest();
         $this->view->delCommentForm = $delCommentForm;
         $this->view->comments = $this->comments;
         $this->view->listAllLink = Url::fromPath('monitoring/list/comments')
-                ->setQueryString($this->filter->toQueryString());
+            ->setQueryString($this->filter->toQueryString());
     }
 }
