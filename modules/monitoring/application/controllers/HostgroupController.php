@@ -9,8 +9,8 @@ class Monitoring_HostgroupController extends Controller
     {
         $this->addTitleTab(
             'hostgroupgrid',
-            $this->translate('Host Group Grid'),
-            $this->translate('List host groups\' states as grid')
+            $this->translate('Hostgroup Grid'),
+            $this->translate('List all host groups')
         );
         $this->setAutorefreshInterval(12);
 
@@ -20,7 +20,6 @@ class Monitoring_HostgroupController extends Controller
             'hosts_down_handled',
             'hosts_down_unhandled',
             'hosts_pending',
-            'hosts_total',
             'hosts_unreachable_handled',
             'hosts_unreachable_unhandled',
             'hosts_up'
@@ -30,11 +29,9 @@ class Monitoring_HostgroupController extends Controller
         $this->view->hostgroups = $query;
 
         $this->setupLimitControl();
-        $this->setupPaginationControl($this->view->hostgroups);
+        $this->setupPaginationControl($this->view->hostgroups, 100);
         $this->setupSortControl(array(
-            'hosts_severity'    => $this->translate('Severity'),
-            'hostgroup_alias'   => $this->translate('Host Group Name'),
-            'hosts_total'       => $this->translate('Total Hosts')
+            'hostgroup_alias'   => $this->translate('Hostgroup Name')
         ), $query);
     }
 }
