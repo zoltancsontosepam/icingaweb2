@@ -1,0 +1,58 @@
+<?php
+use Icinga\Module\Monitoring\Object\Service;
+
+if (! $this->compact): ?>
+<div class="controls">
+    <?= $this->tabs; ?>
+    <?= $this->sortBox; ?>
+    <?= $this->limiter; ?>
+    <?= $this->paginator; ?>
+    <?= $this->filterEditor; ?>
+</div>
+<?php endif ?>
+<div class="content" data-base-target="_next">
+    <div class="group-grid">
+<?php
+
+if (count($servicegroups) === 0) {
+    echo $this->translate('No servicegroups found matching the filter') . '</div>';
+    return;
+}
+foreach ($servicegroups as $s) {
+    if ($s->services_critical_unhandled) {
+        $handled = false;
+        $state = Service::STATE_CRITICAL;
+    } elseif ($s->services_unknown_unhandled) {
+        $handled = false;
+        $state = Service::STATE_UNKNOWN;
+    } elseif ($s->services_warning_unhandled) {
+        $handled = false;
+        $state = Service::STATE_WARNING;
+    } else {
+        $handled = true;
+        if ($s->services_critical_handled) {
+            $state = Service::STATE_CRITICAL;
+        } elseif ($s->services_unknown_handled) {
+            $state = Service::STATE_UNKNOWN;
+        } elseif ($s->services_warning_handled) {
+            $state = Service::STATE_WARNING;
+        } elseif ($s->services_ok) {
+            $state = Service::STATE_OK;
+        } else {
+            $state = Service::STATE_PENDING;
+        }
+    }
+?>
+        <div class="group-grid item">
+            <div class="state-indicator <?= Service::getStateText($state) . ($handled ? ' handled' : '') ?>"
+                 title="<?= sprintf($this->translate('State %s'), Service::getStateText($state, true)) ?>"></div>
+            <?= $this->qlink(
+            $s->servicegroup_alias,
+            'monitoring/list/servicegrid',
+            array('servicegroup_name' => $s->servicegroup_name),
+            array('title' => sprintf($this->translate('Show the grid for services in the group "%s"'), $s->servicegroup_alias))
+            ) ?>
+        </div>
+    <?php } ?>
+    </div>
+</div>
