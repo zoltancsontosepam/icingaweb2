@@ -1139,32 +1139,25 @@ table.perfdata td {
   padding-right: 0.5em;
 }
 
-table.hostgroup-grid {
+div.group-grid {
   margin-right: 1em;
-  border-collapse: collapse;
   display: inline-block;
 
-  &, tr {
-    &, td {
-      border: 0px none;
-    }
+  &.item {
+    white-space: nowrap;
+    width: 15em;
   }
 
-  td:first-child {
-    width: 20em;
-  }
-  td:last-child {
-    padding: 0px;
-  }
-
-  div.state-indicator-circle {
-    width: 24px;
+  div.state-indicator {
+    width: 12px;
     height: 24px;
-    border-radius: 12px;
     display: inline-block;
+    position: relative;
+    bottom: -8px;
+    margin-right: 10px;
 
-    &:hover {
-      cursor: help;
+    &.ok {
+      background-color: @colorOk;
     }
 
     &.up {
@@ -1174,6 +1167,23 @@ table.hostgroup-grid {
     &.down {
       background-color: @colorCritical;
     }
+
+    &.critical {
+      background-color: @colorCritical;
+    }
+
+    &.critical.handled {
+      background-color: @colorCriticalHandled;
+    }
+
+    &.warning {
+      background-color: @colorWarning;
+    }
+
+    &.unknown {
+      background-color: @colorUnknown;
+    }
+
     &.down.handled {
       background-color: @colorCriticalHandled;
     }
