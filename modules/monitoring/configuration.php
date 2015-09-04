@@ -160,8 +160,16 @@ $section->add($this->translate('Servicegroups'), array(
     'url'      => 'monitoring/list/servicegroups',
     'priority' => 60
 ));
+$section->add($this->translate('Servicegroups Grid'), array(
+    'url'      => 'monitoring/servicegroup/grid',
+    'priority' => 60
+));
 $section->add($this->translate('Hostgroups'), array(
     'url'      => 'monitoring/list/hostgroups',
+    'priority' => 60
+));
+$section->add($this->translate('Hostgroups Grid'), array(
+    'url'      => 'monitoring/hostgroup/grid',
     'priority' => 60
 ));
 $section->add($this->translate('Contacts'), array(
