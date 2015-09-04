@@ -10,7 +10,8 @@ if (! $this->compact): ?>
     <?= $this->filterEditor; ?>
 </div>
 <?php endif ?>
-<div class="content">
+<div class="content" data-base-target="_next">
+    <div class="group-grid">
 <?php
 if (count($hostgroups) === 0) {
     echo $this->translate('No hostgroups found matching the filter') . '</div>';
@@ -36,26 +37,16 @@ foreach ($hostgroups as $h) {
         }
     }
 ?>
-    <table class="hostgroup-grid">
-        <tr>
-            <td><?= $this->qlink(
-                $h->hostgroup_alias,
-                'monitoring/list/hosts',
-                array('hostgroup_name' => $h->hostgroup_name),
-                array('title' => sprintf($this->translate('List all hosts in the group "%s"'), $h->hostgroup_alias))
-            ) ?> (<?= $this->qlink(
-                $h->hosts_total,
-                'monitoring/list/hosts',
-                array('hostgroup_name' => $h->hostgroup_name),
-                array('title' => sprintf(
-                    $this->translate('List all hosts in host group "%s"'),
-                    $h->hostgroup_alias
-                ))
-            ) ?>)</td>
-            <td><div class="state-indicator-circle <?=
-                Host::getStateText($state) . ($handled ? ' handled' : '')
-            ?>" title="<?= Host::getStateText($state, true) ?>"></div></td>
-        </tr>
-    </table>
-<?php } ?>
+        <div class="group-grid item">
+            <div class="state-indicator <?= Host::getStateText($state) . ($handled ? ' handled' : '') ?>"
+                 title="<?= sprintf($this->translate('State %s'), Host::getStateText($state, true)) ?>"></div>
+            <?= $this->qlink(
+            $h->hostgroup_alias,
+            'monitoring/list/servicegrid',
+            array('hostgroup_name' => $h->hostgroup_name),
+            array('title' => sprintf($this->translate('Show the grid for hosts in the group "%s"'), $h->hostgroup_alias))
+            ) ?>
+        </div>
+    <?php } ?>
+    </div>
 </div>
