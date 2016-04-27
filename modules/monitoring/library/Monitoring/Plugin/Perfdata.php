@@ -73,6 +73,20 @@ class Perfdata
     protected $criticalThreshold;
 
     /**
+     * The WARNING threshold as got from the plugin
+     *
+     * @var string
+     */
+    protected $rawWarningThreshold;
+
+    /**
+     * The CRITICAL threshold as got from the plugin
+     *
+     * @var string
+     */
+    protected $rawCriticalThreshold;
+
+    /**
      * Create a new Perfdata object based on the given performance data label and value
      *
      * @param   string      $label      The perfdata label
@@ -305,22 +319,26 @@ class Perfdata
                     $this->minValue = self::convert($parts[3], $this->unit);
                 }
             case 3:
+                $this->rawCriticalThreshold = trim($parts[2]);
                 $this->criticalThreshold = self::convert(
-                    ThresholdRange::fromString(trim($parts[2]) ?: '~:'),
+                    ThresholdRange::fromString($this->rawCriticalThreshold ?: '~:'),
                     $this->unit
                 );
             case 2:
+                $this->rawWarningThreshold = trim($parts[1]);
                 $this->warningThreshold = self::convert(
-                    ThresholdRange::fromString(trim($parts[1]) ?: '~:'),
+                    ThresholdRange::fromString($this->rawWarningThreshold ?: '~:'),
                     $this->unit
                 );
         }
 
         if ($this->warningThreshold === null) {
             $this->warningThreshold = new ThresholdRange();
+            $this->rawWarningThreshold = '';
         }
         if ($this->criticalThreshold === null) {
             $this->criticalThreshold = new ThresholdRange();
+            $this->rawCriticalThreshold = '';
         }
     }
 
@@ -445,13 +463,27 @@ class Perfdata
 
     public function toArray()
     {
+        if ($this->warningThreshold->getMin() === null) {
+            $max = $this->warningThreshold->getMax();
+            $warn = $max === null ? '∞' : $this->format($max);
+        } else {
+            $warn = $this->rawWarningThreshold;
+        }
+
+        if ($this->criticalThreshold->getMin() === null) {
+            $max = $this->criticalThreshold->getMax();
+            $crit = $max === null ? '∞' : $this->format($max);
+        } else {
+            $crit = $this->rawCriticalThreshold;
+        }
+
         return array(
             'label' => $this->getLabel(),
             'value' => $this->format($this->getvalue()),
             'min' => isset($this->minValue) && !$this->isPercentage() ? $this->format($this->minValue) : '',
             'max' => isset($this->maxValue) && !$this->isPercentage() ? $this->format($this->maxValue) : '',
-            'warn' => (string) $this->warningThreshold,
-            'crit' => (string) $this->criticalThreshold
+            'warn' => $warn,
+            'crit' => $crit
         );
     }
 
