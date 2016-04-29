@@ -414,6 +414,15 @@ class Perfdata
      */
     protected function format($value)
     {
+        if ($value instanceof ThresholdRange) {
+            if ($value->getMin()) {
+                return (string) $value;
+            }
+
+            $max = $value->getMax();
+            return $max === null ? '' : $this->format($max);
+        }
+
         if ($this->isPercentage()) {
             return (string)$value . '%';
         }
@@ -445,27 +454,13 @@ class Perfdata
 
     public function toArray()
     {
-        if ($this->warningThreshold->getMin() === null) {
-            $max = $this->warningThreshold->getMax();
-            $warn = $max === null ? '∞' : $this->format($max);
-        } else {
-            $warn = (string) $this->warningThreshold;
-        }
-
-        if ($this->criticalThreshold->getMin() === null) {
-            $max = $this->criticalThreshold->getMax();
-            $crit = $max === null ? '∞' : $this->format($max);
-        } else {
-            $crit = (string) $this->criticalThreshold;
-        }
-
         return array(
             'label' => $this->getLabel(),
             'value' => $this->format($this->getvalue()),
             'min' => isset($this->minValue) && !$this->isPercentage() ? $this->format($this->minValue) : '',
             'max' => isset($this->maxValue) && !$this->isPercentage() ? $this->format($this->maxValue) : '',
-            'warn' => $warn,
-            'crit' => $crit
+            'warn' => $this->format($this->warningThreshold),
+            'crit' => $this->format($this->criticalThreshold)
         );
     }
 
