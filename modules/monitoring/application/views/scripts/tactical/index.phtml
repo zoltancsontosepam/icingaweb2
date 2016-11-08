@@ -3,6 +3,118 @@
     <?= $this->tabs ?>
 </div>
 <?php endif ?>
+<style type="text/css">
+	.details {
+		position: relative;
+	}
+
+	.details > .panel {
+		position: absolute;
+		bottom: 0;
+		left: 67%;
+	}
+
+	.details > .graph-donut {
+		width: 66.667%;
+	}
+
+	.panel > table {
+		background: #fafafa;
+		padding: .25em;
+		float: left;
+		border-radius: .25em;
+		overflow: hidden;
+		margin-left: 12px;
+	}
+
+	.panel > table tfoot tr td {
+		font-weight: bold;
+	}
+
+	.panel > table tfoot tr:first-child td,
+	.panel > table tfoot tr:first-child th {
+		border-top: 1px solid #eeeeee;
+	}
+
+	.panel > table tr th,
+	.panel > table tr td {
+		text-align: right;
+		padding: .25em 1em;
+	}
+
+	.panel > table tfoot tr td {
+		text-align: right;
+	}
+
+	tr.ok td, tr.ok th {
+		color: #4b7
+	}
+
+	tr.warning td, tr.warning th {
+		color: #fa4
+	}
+
+	tr.critical td, tr.critical th {
+		color: #f56;
+	}
+
+	tr.pending td, tr.pending th {
+		color: #7af;
+	}
+
+	.square {
+		position: relative;
+	}
+
+	.square:before {
+		content: "";
+		display: block;
+		padding-top: 100%;
+	}
+
+	.square > img,
+	.square > .meta {
+		position: absolute;
+		display: block;
+		top: 0; left: 0; width: 100%; height: 100%;
+	}
+
+	.square > .meta {
+		font-weight: bold;
+		padding: 4em;
+	}
+
+	.square > .meta:before {
+		content: "";
+		display: inline-block;
+		vertical-align: middle;
+		height: 100%;
+	}
+
+	.square > .meta > .wrap {
+		display: inline-block;
+		vertical-align: middle;
+	}
+
+	.count-big {
+		display: block;
+		font-size: 10em;
+		line-height: 1;
+	}
+
+	.count-label {
+		display: block;
+		font-size: 1.3em;
+	}
+
+	.critical {
+		color: #f56;
+	}
+
+	.count-label.critical-handled {
+		color: #f9a /* @color-critical-handled */
+	}
+</style>
 <div class="content tactical grid">
     <div class="boxview" data-base-target="_next">
 <?php if ($this->statusSummary->hosts_down || $this->statusSummary->hosts_unreachable): ?>
