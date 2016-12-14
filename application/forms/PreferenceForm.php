@@ -256,6 +256,17 @@ class PreferenceForm extends Form
             )
         );
 
+        $this->addElement(
+            'number',
+            'default_list_limit',
+            array(
+                'label'         => $this->translate('Default listing limit'),
+                'description'   => $this->translate('Default limit for list views'),
+                'min'           => 0,
+                'step'          => 1
+            )
+        );
+
         if ($this->store) {
             $this->addElement(
                 'submit',

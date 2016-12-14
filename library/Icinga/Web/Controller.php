@@ -21,6 +21,13 @@ use Icinga\Web\Widget\SortBox;
 class Controller extends ModuleActionController
 {
     /**
+     * Cache for {@link getDefaultItemsPerPage()}
+     *
+     * @var int
+     */
+    protected $defaultItemsPerPage;
+
+    /**
      * @see ActionController::init
      */
     public function init()
@@ -134,14 +141,29 @@ class Controller extends ModuleActionController
      *
      * @return  $this
      */
-    protected function setupLimitControl($itemsPerPage = 25)
+    protected function setupLimitControl($itemsPerPage = null)
     {
         if (! $this->view->compact) {
             $this->view->limiter = new Limiter();
-            $this->view->limiter->setDefaultLimit($itemsPerPage);
+            $this->view->limiter->setDefaultLimit(
+                $itemsPerPage === null ? $this->getDefaultItemsPerPage() : $itemsPerPage
+            );
         }
 
         return $this;
+    }
+
+    protected function getDefaultItemsPerPage()
+    {
+        if ($this->defaultItemsPerPage === null) {
+            $user = $this->Auth()->getUser();
+            $itemsPerPage = $user === null
+                ? null
+                : $user->getPreferences()->getValue('icingaweb', 'default_list_limit');
+            $this->defaultItemsPerPage = $itemsPerPage === null ? 25 : (int) $itemsPerPage;
+        }
+
+        return $this->defaultItemsPerPage;
     }
 
     /**
@@ -156,10 +178,13 @@ class Controller extends ModuleActionController
      *
      * @return  $this
      */
-    protected function setupPaginationControl(QueryInterface $query, $itemsPerPage = 25, $pageNumber = 0)
+    protected function setupPaginationControl(QueryInterface $query, $itemsPerPage = null, $pageNumber = 0)
     {
         $request = $this->getRequest();
-        $limit = $request->getParam('limit', $itemsPerPage);
+        $limit = $request->getParam('limit');
+        if ($limit === null) {
+            $limit = $itemsPerPage === null ? $this->getDefaultItemsPerPage() : $itemsPerPage;
+        }
         $page = $request->getParam('page', $pageNumber);
         $query->limit($limit, $page > 0 ? ($page - 1) * $limit : 0);
 
