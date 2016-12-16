@@ -40,18 +40,20 @@ class Controller extends IcingaWebController
         }
         if ($this->_getParam('format') === 'json'
             || $this->_request->getHeader('Accept') === 'application/json') {
+            $json = Json::create($query);
             while (ob_get_level()) {
                 ob_end_clean();
             }
-            Json::create($query)->dump();
+            $json->dump();
             exit;
         }
         if ($this->_getParam('format') === 'csv'
             || $this->_request->getHeader('Accept') === 'text/csv') {
+            $csv = Csv::fromQuery($query);
             while (ob_get_level()) {
                 ob_end_clean();
             }
-            Csv::fromQuery($query)->dump();
+            $csv->dump();
             exit;
         }
     }
