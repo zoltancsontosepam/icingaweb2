@@ -45,6 +45,9 @@ class Controller extends IcingaWebController
         }
         if ($this->_getParam('format') === 'csv'
             || $this->_request->getHeader('Accept') === 'text/csv') {
+            while (ob_get_level()) {
+                ob_end_clean();
+            }
             Csv::fromQuery($query)->dump();
             exit;
         }
