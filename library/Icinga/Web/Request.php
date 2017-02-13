@@ -3,6 +3,7 @@
 
 namespace Icinga\Web;
 
+use Icinga\Util\Json;
 use Zend_Controller_Request_Http;
 use Icinga\Application\Icinga;
 use Icinga\User;
@@ -117,5 +118,15 @@ class Request extends Zend_Controller_Request_Http
             $this->uniqueId = Window::generateId();
         }
         return $id . '-' . $this->uniqueId;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getPost($key = null, $default = null)
+    {
+        return $key === null && $this->isApiRequest()
+            ? Json::decode(file_get_contents('php://input'), true)
+            : parent::getPost($key, $default);
     }
 }
