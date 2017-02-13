@@ -133,6 +133,10 @@ class DateTimePicker extends FormElement
      */
     public function isValid($value, $context = null)
     {
+        if (is_scalar($value) && $value !== '' && ! preg_match('/\D/', $value)) {
+            $value = DateTime::createFromFormat('U', $value)->format($this->getFormat());
+        }
+
         if (! parent::isValid($value, $context)) {
             return false;
         }
