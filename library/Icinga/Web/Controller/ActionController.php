@@ -453,7 +453,9 @@ class ActionController extends Zend_Controller_Action
     public function preDispatch()
     {
         $form = new AutoRefreshForm();
-        $form->handleRequest();
+        if (! $this->getRequest()->isApiRequest()) {
+            $form->handleRequest();
+        }
         $this->_helper->layout()->autoRefreshForm = $form;
     }
 
