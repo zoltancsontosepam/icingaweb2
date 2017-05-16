@@ -54,7 +54,7 @@ class ModuleCommand extends Command
         }
 
         if ($type === 'enabled') {
-            $modules = $this->modules->listEnabledModules();
+            $modules = array_merge($this->modules->listDanglingModules(), $this->modules->listEnabledModules());
         } else {
             $modules = $this->modules->listInstalledModules();
         }
@@ -68,19 +68,23 @@ class ModuleCommand extends Command
             printf("%-14s %-9s %-9s %s\n", 'MODULE', 'VERSION', 'STATE', 'DESCRIPTION');
         }
         foreach ($modules as $module) {
-            $mod = $this->modules->loadModule($module)->getModule($module);
-            if ($this->isVerbose) {
-                $dir = ' ' . $this->modules->getModuleDir($module);
+            if ($this->modules->hasDangling($module)) {
+                printf("%-14s -         dangling  -\n", $module);
             } else {
-                $dir = $mod->getTitle();
+                $mod = $this->modules->loadModule($module)->getModule($module);
+                if ($this->isVerbose) {
+                    $dir = ' ' . $this->modules->getModuleDir($module);
+                } else {
+                    $dir = $mod->getTitle();
+                }
+                printf(
+                    "%-14s %-9s %-9s %s\n",
+                    $module,
+                    $mod->getVersion(),
+                    ($type === 'enabled' || $this->modules->hasEnabled($module)) ? 'enabled' : 'disabled',
+                    $dir
+                );
             }
-            printf(
-                "%-14s %-9s %-9s %s\n",
-                $module,
-                $mod->getVersion(),
-                ($type === 'enabled' || $this->modules->hasEnabled($module)) ? 'enabled' : 'disabled',
-                $dir
-            );
         }
         echo "\n";
     }
@@ -115,7 +119,7 @@ class ModuleCommand extends Command
             return $this->showUsage();
         }
 
-        if ($this->modules->hasEnabled($module)) {
+        if ($this->modules->hasEnabled($module) || $this->modules->hasDangling($module)) {
             $this->modules->disableModule($module);
         } else {
             Logger::info('Module "%s" is already disabled', $module);

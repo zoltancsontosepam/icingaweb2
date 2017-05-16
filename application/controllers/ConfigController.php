@@ -102,6 +102,7 @@ class ConfigController extends Controller
         $this->view->modules = Icinga::app()->getModuleManager()->select()
             ->from('modules')
             ->order('enabled', 'desc')
+            ->order('dangling', 'desc')
             ->order('name');
         $this->setupLimitControl();
         $this->setupPaginationControl($this->view->modules);
@@ -126,6 +127,8 @@ class ConfigController extends Controller
             $this->view->moduleGitCommitId = Version::getGitHead($module->getBaseDir());
         } else {
             $this->view->module = false;
+            $this->view->moduleName = $name;
+            $this->view->dangling = $manager->hasDangling($name);
             $this->view->tabs = null;
         }
     }

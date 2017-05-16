@@ -53,6 +53,13 @@ class Manager
     private $loadedModules     = array();
 
     /**
+     * Names of modules that have been enabled and deleted
+     *
+     * @var string[]
+     */
+    protected $danglingModules = null;
+
+    /**
      * Reference to Icinga::app
      *
      * @var Icinga
@@ -115,6 +122,8 @@ class Manager
      */
     private function detectEnabledModules()
     {
+        $this->danglingModules = array();
+
         if (! file_exists($parent = dirname($this->enableDir))) {
             return;
         }
@@ -158,19 +167,22 @@ class Manager
                 }
 
                 $dir = realpath($link);
-                if (! file_exists($dir) || !is_dir($dir)) {
+                if ($dir === false) {
                     Logger::warning(
                         'Found invalid module in enabledModule directory "%s": "%s" points to non existing path "%s"',
                         $this->enableDir,
                         $link,
                         $dir
                     );
+
+                    $this->danglingModules[$file] = null;
                     continue;
                 }
 
                 $this->enabledDirs[$file] = $dir;
                 ksort($this->enabledDirs);
             }
+            ksort($this->danglingModules);
             closedir($dh);
         }
     }
@@ -313,7 +325,7 @@ class Manager
      */
     public function disableModule($name)
     {
-        if (! $this->hasEnabled($name)) {
+        if (! ($this->hasEnabled($name) || $this->hasDangling($name))) {
             throw new ConfigurationError(
                 'Cannot disable module "%s". Module is not installed.',
                 $name
@@ -329,7 +341,7 @@ class Manager
         }
 
         $link = $this->enableDir . DIRECTORY_SEPARATOR . $name;
-        if (! file_exists($link)) {
+        if (! (file_exists($link) || is_link($link))) {
             throw new ConfigurationError(
                 'Cannot disable module "%s". Module is not installed.',
                 $name
@@ -346,21 +358,20 @@ class Manager
             );
         }
 
-        if (file_exists($link) && is_link($link)) {
-            if (! @unlink($link)) {
-                $error = error_get_last();
-                throw new SystemPermissionException(
-                    'Cannot enable module "%s" at %s due to file system errors. '
-                    . 'Please check path and mounting points because this is not a permission error. '
-                    . 'Primary error was: %s',
-                    $name,
-                    $this->enableDir,
-                    $error['message']
-                );
-            }
+        if (! @unlink($link)) {
+            $error = error_get_last();
+            throw new SystemPermissionException(
+                'Cannot enable module "%s" at %s due to file system errors. '
+                . 'Please check path and mounting points because this is not a permission error. '
+                . 'Primary error was: %s',
+                $name,
+                $this->enableDir,
+                $error['message']
+            );
         }
 
         unset($this->enabledDirs[$name]);
+        unset($this->danglingModules[$name]);
         return $this;
     }
 
@@ -419,6 +430,18 @@ class Manager
     public function hasEnabled($name)
     {
         return array_key_exists($name, $this->enabledDirs);
+    }
+
+    /**
+     * Return whether there's a dangling module with the given name
+     *
+     * @param   string  $name
+     *
+     * @return  bool
+     */
+    public function hasDangling($name)
+    {
+        return in_array($name, $this->listDanglingModules());
     }
 
     /**
@@ -483,22 +506,35 @@ class Manager
         $enabled = $this->listEnabledModules();
         foreach ($enabled as $name) {
             $info[$name] = (object) array(
-                'name'    => $name,
-                'path'    => $this->enabledDirs[$name],
-                'enabled' => true,
-                'loaded'  => $this->hasLoaded($name)
+                'name'      => $name,
+                'path'      => $this->enabledDirs[$name],
+                'enabled'   => true,
+                'dangling'  => false,
+                'loaded'    => $this->hasLoaded($name)
             );
         }
 
         $installed = $this->listInstalledModules();
         foreach ($installed as $name) {
             $info[$name] = (object) array(
-                'name'    => $name,
-                'path'    => $this->installedBaseDirs[$name],
-                'enabled' => $this->hasEnabled($name),
-                'loaded'  => $this->hasLoaded($name)
+                'name'      => $name,
+                'path'      => $this->installedBaseDirs[$name],
+                'enabled'   => $this->hasEnabled($name),
+                'dangling'  => false,
+                'loaded'    => $this->hasLoaded($name)
             );
         }
+
+        foreach ($this->listDanglingModules() as $name) {
+            $info[$name] = (object) array(
+                'name'      => $name,
+                'path'      => '',
+                'enabled'   => true,
+                'dangling'  => true,
+                'loaded'    => false
+            );
+        }
+
         return $info;
     }
 
@@ -514,6 +550,20 @@ class Manager
         }
 
         return array_keys($this->enabledDirs);
+    }
+
+    /**
+     * Get {@link danglingModules}
+     *
+     * @return string[]
+     */
+    public function listDanglingModules()
+    {
+        if ($this->danglingModules === null) {
+            $this->detectEnabledModules();
+        }
+
+        return array_keys($this->danglingModules);
     }
 
     /**

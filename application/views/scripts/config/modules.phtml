@@ -15,12 +15,16 @@
     <?php foreach ($modules as $module): ?>
         <tr>
             <td>
-                <?php if ($module->enabled && $module->loaded) {
-                    echo $this->icon('thumbs-up', sprintf($this->translate('Module %s is enabled'), $module->name));
-                } elseif (! $module->enabled) {
+                <?php if ($module->enabled) {
+                    if ($module->dangling) {
+                        echo $this->icon('trash', sprintf($this->translate('Module %s is dangling'), $module->name));
+                    } elseif ($module->loaded) {
+                        echo $this->icon('thumbs-up', sprintf($this->translate('Module %s is enabled'), $module->name));
+                    } else {
+                        echo $this->icon('block', sprintf($this->translate('Module %s has failed to load'), $module->name));
+                    }
+                } else {
                     echo $this->icon('block', sprintf($this->translate('Module %s is disabled'), $module->name));
-                } else { // ! $module->loaded
-                    echo $this->icon('block', sprintf($this->translate('Module %s has failed to load'), $module->name));
                 }
 
                 echo $this->qlink(

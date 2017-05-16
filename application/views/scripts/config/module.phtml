@@ -2,10 +2,22 @@
   <?= $this->tabs ?>
 </div>
 <div class="content">
-  <?php if (! $module): ?>
-    <?= $this->translate('There is no such module installed.') ?>
-  <?php return; endif ?>
   <?php
+    if (! $module) {
+      echo $this->translate('There is no such module installed.');
+      if ($dangling) {
+        echo '<br>' . $this->translate(
+          'However there has been a such module installed. It has been deleted while being enabled.'
+        ) . '<br>' . $this->qlink(
+          $this->translate('Disable the module and remove it from the modules list'),
+          'config/moduledisable',
+          array('name' => $moduleName),
+          array('title' => sprintf($this->translate('Disable the %s module'), $moduleName), 'class' => 'action-link')
+        );
+      }
+      return;
+    }
+
     $dependencies = $module->getDependencies();
     $restrictions = $module->getProvidedRestrictions();
     $permissions = $module->getProvidedPermissions();
