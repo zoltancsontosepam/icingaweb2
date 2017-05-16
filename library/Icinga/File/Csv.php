@@ -3,6 +3,7 @@
 
 namespace Icinga\File;
 
+use Exception;
 use Icinga\Util\Buffer;
 use Traversable;
 
@@ -31,13 +32,18 @@ class Csv
 
     public function dump()
     {
+        $this->render()->rewind();
         header('Content-type: text/csv');
-        $this->render()->fpassthru();
+        $this->renderBuffer->fpassthru();
     }
 
     public function __toString()
     {
-        return (string) $this->render();
+        try {
+            return (string) $this->render();
+        } catch (Exception $e) {
+            return (string) $e;
+        }
     }
 
     /**
@@ -52,10 +58,10 @@ class Csv
             $first = true;
             foreach ($this->query as $row) {
                 if ($first) {
-                    $this->renderBuffer->append($this->renderRow(array_keys((array) $row)));
+                    $this->renderBuffer->write($this->renderRow(array_keys((array) $row)));
                     $first = false;
                 }
-                $this->renderBuffer->append($this->renderRow(array_values((array) $row)));
+                $this->renderBuffer->write($this->renderRow(array_values((array) $row)));
             }
         }
 

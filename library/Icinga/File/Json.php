@@ -3,6 +3,7 @@
 
 namespace Icinga\File;
 
+use Exception;
 use Icinga\Exception\IcingaException;
 use Icinga\Util\Buffer;
 use stdClass;
@@ -55,8 +56,9 @@ class Json
      */
     public function dump()
     {
+        $this->render()->rewind();
         header('Content-Type: application/json');
-        $this->render()->fpassthru();
+        $this->renderBuffer->fpassthru();
     }
 
     /**
@@ -66,7 +68,11 @@ class Json
      */
     public function __toString()
     {
-        return (string) $this->render();
+        try {
+            return (string) $this->render();
+        } catch (Exception $e) {
+            return (string) $e;
+        }
     }
 
     /**
@@ -78,19 +84,19 @@ class Json
     {
         if ($this->renderBuffer === null) {
             $this->renderBuffer = new Buffer();
-            $this->renderBuffer->append('[');
+            $this->renderBuffer->write('[');
 
             $first = true;
             foreach ($this->query as $row) {
                 if ($first) {
                     $first = false;
                 } else {
-                    $this->renderBuffer->append(',');
+                    $this->renderBuffer->write(',');
                 }
-                $this->renderBuffer->append($this->renderRow($row));
+                $this->renderBuffer->write($this->renderRow($row));
             }
 
-            $this->renderBuffer->append(']');
+            $this->renderBuffer->write(']');
         }
 
         return $this->renderBuffer;
