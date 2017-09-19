@@ -42,7 +42,9 @@ class LivestatusResourceForm extends Form
             array(
                 'required'      => true,
                 'label'         => $this->translate('Socket'),
-                'description'   => $this->translate('The path to your livestatus socket used for querying monitoring data'),
+                'description'   => $this->translate(
+                    'The path to your livestatus socket used for querying monitoring data'
+                ),
                 'value'         => '/var/run/icinga2/cmd/livestatus'
             )
         );
